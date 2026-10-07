@@ -12,7 +12,7 @@
         "changelog": "First stable release with configurable sync intervals and reliable remote calendar synchronization.",
         "targetAbi": "12.1.0.0",
         "sourceUrl": "https://github.com/Joshsnook-05/jellyfin-remote-library/releases/download/v1.0.0/jellyfin-plugin-remote-library_1.0.0.zip",
-        "checksum": "f3554de86d760c66fce8c63a08ce61e7",
+        "checksum": "3e55af27271ad6cabdc8e0d6e4774a7e",
         "timestamp": "2026-10-07T00:00:00.0000000Z"
       }
     ]
