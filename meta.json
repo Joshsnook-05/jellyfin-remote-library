@@ -8,7 +8,7 @@
   "owner": "Josh Snook",
   "targetAbi": "12.1.0.0",
   "timestamp": "2026-10-07T00:00:00.0000000Z",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "status": "Active",
   "autoUpdate": true,
   "assemblies": ["Jellyfin.Plugin.RemoteLibrary.dll"]
