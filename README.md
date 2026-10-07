@@ -112,3 +112,58 @@ The plugin never asks for a remote password. Quick Connect issues an access toke
 ## License
 
 MIT
+
+## FAQ
+
+<details>
+<summary><strong>Is this just the same as Jellyswarm?</strong></summary>
+
+It is similar in a few ways, but no.
+
+Jellyswarm uses its own URL as the single entry point. Remote Library combines remote content directly into your regular Jellyfin library, so your existing plugins and configuration continue to work normally.
+
+Jellyswarm routes playback through the selected upstream server. That means each user on your local server generally needs a corresponding account on the remote server. Remote Library only requires the person configuring the connection to authenticate to the remote server; playback is proxied through that connection, so other local users can access the remote media.
+
+Jellyswarm merges libraries into its own virtual catalogue and handles duplicate media there. Remote Library prefers the local copy. If it is unavailable, a remote copy can be used instead, and remote servers can fill gaps in a series when they have episodes that the local server does not.
+
+Remote Library also synchronizes the Jellyfin Enhanced calendar and reviews, adds remote-server badges to remote items, and shows when a source server is unreachable.
+
+When using Remote Library, new media can be found by scanning the remote libraries or by running a complete local library scan. By default, the plugin checks for new remote media and calendar updates hourly, and new remote reviews every five minutes. These intervals can be changed in the plugin settings.
+
+**TL;DR:** Jellyswarm combines multiple servers into a separate server that you may need to configure with its own plugins. Remote Library adds remote servers to your existing Jellyfin library, so the plugins and features you already use keep working.
+
+</details>
+
+<details>
+<summary><strong>If I install this, will my friend also see my library?</strong></summary>
+
+If only you install and configure it, you will see your own content and the remote content you have connected, while your friend will continue to see only their own library.
+
+If both of you install and configure Remote Library, each server can sync the other server's content. The plugin prevents content imported from a remote server from being exported again, so it will not endlessly duplicate through the connection.
+
+</details>
+
+<details>
+<summary><strong>What about the legality? Could one bad actor ruin it?</strong></summary>
+
+Remote Library only syncs the libraries that you explicitly connect to your Jellyfin server. It does not link together every user or every server on the internet.
+
+This is intended for connecting your own servers or servers belonging to friends and family. It does not provide a public catalogue or a global media-sharing network.
+
+</details>
+
+<details>
+<summary><strong>But Moonfin does this natively.</strong></summary>
+
+Moonfin does offer remote-library functionality. Remote Library also provides additional integrations: remote calendar and Jellyfin Enhanced review synchronization, a recommendation section using connected servers and local Seerr when available, server-reachability indicators that keep artwork visible while a server is offline, and hierarchy matching that adapts remote content to your local library structure.
+
+In testing, the standard Jellyfin app also ran better on some TVs than Moonfin because it was slightly lighter. Your results may vary depending on the device and the UI plugins you use.
+
+</details>
+
+<details>
+<summary><strong>Does the account on the remote server need to be an administrator?</strong></summary>
+
+No. A regular user account works as long as it can view the media you want to sync. The required permissions are Quick Connect and access to the relevant libraries.
+
+</details>
