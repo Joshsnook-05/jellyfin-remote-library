@@ -1,0 +1,15 @@
+/src/Jellyfin.Plugin.RemoteLibrary/bin/Release/net10.0/Jellyfin.Plugin.RemoteLibrary.deps.json
+/src/Jellyfin.Plugin.RemoteLibrary/bin/Release/net10.0/Jellyfin.Plugin.RemoteLibrary.dll
+/src/Jellyfin.Plugin.RemoteLibrary/bin/Release/net10.0/Jellyfin.Plugin.RemoteLibrary.pdb
+/src/Jellyfin.Plugin.RemoteLibrary/bin/Release/net10.0/Jellyfin.Plugin.RemoteLibrary.xml
+/src/Jellyfin.Plugin.RemoteLibrary/obj/Release/net10.0/Jellyfin.Plugin.RemoteLibrary.csproj.AssemblyReference.cache
+/src/Jellyfin.Plugin.RemoteLibrary/obj/Release/net10.0/Jellyfin.Plugin.RemoteLibrary.GeneratedMSBuildEditorConfig.editorconfig
+/src/Jellyfin.Plugin.RemoteLibrary/obj/Release/net10.0/Jellyfin.Plugin.RemoteLibrary.AssemblyInfoInputs.cache
+/src/Jellyfin.Plugin.RemoteLibrary/obj/Release/net10.0/Jellyfin.Plugin.RemoteLibrary.AssemblyInfo.cs
+/src/Jellyfin.Plugin.RemoteLibrary/obj/Release/net10.0/Jellyfin.Plugin.RemoteLibrary.csproj.CoreCompileInputs.cache
+/src/Jellyfin.Plugin.RemoteLibrary/obj/Release/net10.0/Jellyfin.Plugin.RemoteLibrary.sourcelink.json
+/src/Jellyfin.Plugin.RemoteLibrary/obj/Release/net10.0/Jellyfin.Plugin.RemoteLibrary.dll
+/src/Jellyfin.Plugin.RemoteLibrary/obj/Release/net10.0/refint/Jellyfin.Plugin.RemoteLibrary.dll
+/src/Jellyfin.Plugin.RemoteLibrary/obj/Release/net10.0/Jellyfin.Plugin.RemoteLibrary.xml
+/src/Jellyfin.Plugin.RemoteLibrary/obj/Release/net10.0/Jellyfin.Plugin.RemoteLibrary.pdb
+/src/Jellyfin.Plugin.RemoteLibrary/obj/Release/net10.0/ref/Jellyfin.Plugin.RemoteLibrary.dll

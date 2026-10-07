@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>Jellyfin.Controller</id>
+    <version>12.1.0</version>
+    <authors>Jellyfin Contributors</authors>
+    <license type="expression">GPL-3.0-only</license>
+    <licenseUrl>https://licenses.nuget.org/GPL-3.0-only</licenseUrl>
+    <description>Package Description</description>
+    <repository type="git" url="https://github.com/jellyfin/jellyfin" commit="ee91c75e777da41a9c4f4855e70adc604fbf2ef8" />
+    <dependencies>
+      <group targetFramework="net10.0">
+        <dependency id="Jellyfin.Naming" version="12.1.0" exclude="Build,Analyzers" />
+        <dependency id="Jellyfin.Common" version="12.1.0" exclude="Build,Analyzers" />
+        <dependency id="Jellyfin.Model" version="12.1.0" exclude="Build,Analyzers" />
+        <dependency id="Jellyfin.MediaEncoding.Keyframes" version="12.1.0" exclude="Build,Analyzers" />
+        <dependency id="Microsoft.Extensions.Configuration.Binder" version="10.0.11" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+  </metadata>
+</package>

@@ -1,0 +1,6 @@
+.nuget/
+__pycache__/
+*.pyc
+**/bin/
+**/obj/
+dist/

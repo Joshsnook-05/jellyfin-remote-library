@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Remote Library</title>
+</head>
+<body>
+<div id="RemoteLibraryConfigPage" data-role="page" class="page type-interior pluginConfigurationPage">
+    <div data-role="content">
+        <div class="content-primary">
+            <form id="RemoteLibraryConfigForm">
+                <div class="sectionTitleContainer flex align-items-center">
+                    <h2 class="sectionTitle">Remote Jellyfin Library</h2>
+                </div>
+                <p>Synchronizes metadata and tiny stream pointers. Media stays on the remote server and is streamed on demand.</p>
+                <p style="padding: .75em; border-left: 3px solid #f0ad4e; background: rgba(240,173,78,.12)"><strong>Jellyfin Enhanced:</strong> Enhanced is required for calendar badges, synced artwork, duplicate suppression, and user-written reviews. Remote reviews and reviewer profile pictures are imported every five minutes with their source server attached and are excluded from export to prevent recursive syncing. Updated Remote Library peers also reject nested remote pointers before scanning them. Remote Library does not replace Jellyfin Enhanced automatically.</p>
+
+                <h3>Remote servers</h3>
+                <div id="ServersContainer"></div>
+                <div><button is="emby-button" type="button" id="AddServerButton" class="raised block"><span>Add remote server</span></button></div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="OutputPath">Pointer folder inside Jellyfin</label>
+                    <input id="OutputPath" type="text" is="emby-input" required>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="MovieLibraryName">Existing movie library name</label>
+                    <input id="MovieLibraryName" type="text" is="emby-input" required>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="SeriesLibraryName">Existing shows library name</label>
+                    <input id="SeriesLibraryName" type="text" is="emby-input" required>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="AnimeLibraryName">Existing anime library name</label>
+                    <input id="AnimeLibraryName" type="text" is="emby-input" required>
+                </div>
+                <label class="emby-checkbox-label"><input id="EnableMovies" type="checkbox" is="emby-checkbox"><span>Include movies</span></label>
+                <label class="emby-checkbox-label"><input id="EnableSeries" type="checkbox" is="emby-checkbox"><span>Include shows and episodes</span></label>
+                <label class="emby-checkbox-label"><input id="EnableCalendar" type="checkbox" is="emby-checkbox"><span>Sync remote upcoming episodes into the Jellyfin calendar</span></label>
+                <label class="emby-checkbox-label"><input id="SkipLocalMatches" type="checkbox" is="emby-checkbox"><span>Prefer local movies and episodes; only add remote gaps</span></label>
+
+                <h3>Resync intervals</h3>
+                <p>Changes to scheduled task intervals take effect after Jellyfin reloads the plugin or restarts.</p>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="MediaSyncIntervalMinutes">Media sync interval (minutes)</label>
+                    <input id="MediaSyncIntervalMinutes" type="number" min="5" max="10080" step="1" is="emby-input" required>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="CalendarSyncIntervalMinutes">Calendar sync interval (minutes)</label>
+                    <input id="CalendarSyncIntervalMinutes" type="number" min="5" max="10080" step="1" is="emby-input" required>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="ReviewSyncIntervalMinutes">Review sync interval (minutes)</label>
+                    <input id="ReviewSyncIntervalMinutes" type="number" min="5" max="10080" step="1" is="emby-input" required>
+                </div>
+
+                <div><button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button></div>
+                <div><button is="emby-button" type="button" id="SyncButton" class="raised block"><span>Sync now</span></button></div>
+                <div><button is="emby-button" type="button" id="AttachButton" class="raised block"><span>Attach pointer folders to Movies, Shows and Anime</span></button></div>
+                <p id="RemoteLibraryResult"></p>
+            </form>
+        </div>
+    </div>
+    <script type="text/javascript">
+        (function () {
+            const pluginId = '5bfb2af8-3575-4d2f-9041-621588e13bfa';
+            const pageInstances = document.querySelectorAll('#RemoteLibraryConfigPage');
+            const page = pageInstances[pageInstances.length - 1];
+            const result = page.querySelector('#RemoteLibraryResult');
+            const serversContainer = page.querySelector('#ServersContainer');
+            const value = id => page.querySelector('#' + id);
+            let currentConfig;
+
+            const serverId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random()).replaceAll('-', '');
+            const escapeHtml = text => String(text || '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
+
+            function renderServers(servers) {
+                serversContainer.innerHTML = servers.map(server =>
+                    '<fieldset class="verticalSection" data-server-id="' + escapeHtml(server.Id) + '" style="padding:1em;margin:1em 0;border:1px solid rgba(255,255,255,.18);border-radius:.5em">' +
+                    '<div class="inputContainer"><label class="inputLabel">Badge name</label><input is="emby-input" data-field="SourceLabel" value="' + escapeHtml(server.SourceLabel) + '" placeholder="BURBCO"></div>' +
+                    '<div class="inputContainer"><label class="inputLabel">Jellyfin URL</label><input is="emby-input" data-field="ServerUrl" type="url" value="' + escapeHtml(server.ServerUrl) + '" placeholder="https://jelly.example.com"></div>' +
+                    '<label class="emby-checkbox-label"><input is="emby-checkbox" data-field="Enabled" type="checkbox" ' + (server.Enabled !== false ? 'checked' : '') + '><span>Enabled</span></label>' +
+                    '<p data-role="pair-status">' + (server.RemoteUserName ? 'Paired as ' + escapeHtml(server.RemoteUserName) + '.' : 'Not paired.') + '</p>' +
+                    '<p data-role="quick-code"></p>' +
+                    '<button is="emby-button" type="button" data-action="start-pair" class="raised"><span>Start Quick Connect</span></button>' +
+                    '<button is="emby-button" type="button" data-action="finish-pair" class="raised"><span>Finish pairing</span></button>' +
+                    '<button is="emby-button" type="button" data-action="test" class="raised"><span>Test</span></button>' +
+                    '<button is="emby-button" type="button" data-action="remove" class="raised"><span>Remove</span></button>' +
+                    '</fieldset>').join('');
+            }
+
+            function readServers() {
+                const existing = new Map((currentConfig.Servers || []).map(server => [server.Id, server]));
+                return [...serversContainer.querySelectorAll('[data-server-id]')].map(card => ({
+                    ...(existing.get(card.dataset.serverId) || {}),
+                    Id: card.dataset.serverId,
+                    SourceLabel: card.querySelector('[data-field="SourceLabel"]').value.trim(),
+                    ServerUrl: card.querySelector('[data-field="ServerUrl"]').value.trim(),
+                    Enabled: card.querySelector('[data-field="Enabled"]').checked
+                }));
+            }
+
+            async function load() {
+                Dashboard.showLoadingMsg();
+                const config = await ApiClient.getPluginConfiguration(pluginId);
+                currentConfig = config;
+                ['OutputPath', 'MovieLibraryName', 'SeriesLibraryName', 'AnimeLibraryName'].forEach(id => value(id).value = config[id] || '');
+                ['MediaSyncIntervalMinutes', 'CalendarSyncIntervalMinutes', 'ReviewSyncIntervalMinutes'].forEach(id => value(id).value = config[id] || (id === 'ReviewSyncIntervalMinutes' ? 5 : 60));
+                ['EnableMovies', 'EnableSeries', 'EnableCalendar', 'SkipLocalMatches'].forEach(id => value(id).checked = !!config[id]);
+                const servers = config.Servers && config.Servers.length ? config.Servers : (config.ServerUrl ? [{
+                    Id: serverId(), ServerUrl: config.ServerUrl, SourceLabel: config.SourceLabel,
+                    AccessToken: config.AccessToken, RemoteUserId: config.RemoteUserId,
+                    RemoteUserName: config.RemoteUserName, Enabled: true
+                }] : []);
+                currentConfig.Servers = servers;
+                renderServers(servers);
+                Dashboard.hideLoadingMsg();
+            }
+
+            async function save() {
+                const config = await ApiClient.getPluginConfiguration(pluginId);
+                ['OutputPath', 'MovieLibraryName', 'SeriesLibraryName', 'AnimeLibraryName'].forEach(id => config[id] = value(id).value.trim());
+                ['MediaSyncIntervalMinutes', 'CalendarSyncIntervalMinutes', 'ReviewSyncIntervalMinutes'].forEach(id => config[id] = Math.max(5, Math.min(10080, parseInt(value(id).value, 10) || (id === 'ReviewSyncIntervalMinutes' ? 5 : 60))));
+                ['EnableMovies', 'EnableSeries', 'EnableCalendar', 'SkipLocalMatches'].forEach(id => config[id] = value(id).checked);
+                config.Servers = readServers();
+                await ApiClient.updatePluginConfiguration(pluginId, config);
+                currentConfig = config;
+            }
+
+            async function call(path, method, query) {
+                Dashboard.showLoadingMsg();
+                try {
+                    const response = await ApiClient.ajax({ type: method || 'GET', url: ApiClient.getUrl(path, query), dataType: 'json', timeout: 120000 });
+                    result.textContent = typeof response === 'string' ? response : JSON.stringify(response);
+                    return response;
+                } catch (error) {
+                    let detail = error && (error.responseJSON || error.responseText);
+                    if (!detail && error && typeof error.json === 'function') {
+                        try { detail = await error.json(); } catch (_) { detail = null; }
+                    }
+                    detail = detail || (error && error.message) || 'The request failed.';
+                    result.textContent = typeof detail === 'string' ? detail : JSON.stringify(detail);
+                    throw error;
+                } finally {
+                    Dashboard.hideLoadingMsg();
+                }
+            }
+
+            page.querySelector('#RemoteLibraryConfigForm').addEventListener('submit', async event => {
+                event.preventDefault(); Dashboard.showLoadingMsg();
+                try { await save(); Dashboard.processPluginConfigurationUpdateResult(); }
+                finally { Dashboard.hideLoadingMsg(); }
+            });
+            page.querySelector('#AddServerButton').addEventListener('click', () => {
+                currentConfig.Servers = readServers();
+                currentConfig.Servers.push({ Id: serverId(), ServerUrl: '', SourceLabel: '', AccessToken: '', RemoteUserId: '', RemoteUserName: '', Enabled: true });
+                renderServers(currentConfig.Servers);
+            });
+            serversContainer.addEventListener('click', async event => {
+                const button = event.target.closest('[data-action]');
+                if (!button) return;
+                const card = button.closest('[data-server-id]');
+                const id = card.dataset.serverId;
+                const action = button.dataset.action;
+                if (action === 'remove') {
+                    currentConfig.Servers = readServers().filter(server => server.Id !== id);
+                    renderServers(currentConfig.Servers);
+                    return;
+                }
+                try {
+                    await save();
+                    if (action === 'test') await call('RemoteLibrary/Status', 'GET', { serverId: id });
+                    if (action === 'start-pair') {
+                        const response = await call('RemoteLibrary/QuickConnect/Initiate', 'POST', { serverId: id });
+                        card.querySelector('[data-role="quick-code"]').textContent = 'Quick Connect code: ' + response.Code + '. ' + response.Instructions;
+                    }
+                    if (action === 'finish-pair') {
+                        const response = await call('RemoteLibrary/QuickConnect/Complete', 'POST', { serverId: id });
+                        card.querySelector('[data-role="pair-status"]').textContent = 'Paired as ' + response.Username + ' on ' + response.ServerName + '.';
+                        card.querySelector('[data-role="quick-code"]').textContent = '';
+                        await load();
+                    }
+                } catch (error) {
+                    card.querySelector('[data-role="quick-code"]').textContent = result.textContent;
+                }
+            });
+            page.querySelector('#SyncButton').addEventListener('click', async () => {
+                await save();
+                await call('RemoteLibrary/Sync', 'POST');
+                const poll = async () => {
+                    const status = await call('RemoteLibrary/Sync/Status');
+                    result.textContent = status.State + ': ' + status.Message;
+                    if (status.State === 'Running') {
+                        window.setTimeout(poll, 2000);
+                    }
+                };
+                window.setTimeout(poll, 500);
+            });
+            page.querySelector('#AttachButton').addEventListener('click', async () => {
+                await save();
+                const root = value('OutputPath').value.replace(/\/$/, '');
+                for (const pair of [[value('MovieLibraryName').value, root + '/Movies'], [value('SeriesLibraryName').value, root + '/Shows'], [value('AnimeLibraryName').value, root + '/Anime']]) {
+                    await ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('Library/VirtualFolders/Paths', { refreshLibrary: true }),
+                        contentType: 'application/json',
+                        data: JSON.stringify({ Name: pair[0], Path: pair[1] })
+                    });
+                }
+                result.textContent = 'Pointer folders attached. Run Sync now.';
+            });
+            page.addEventListener('pageshow', load);
+        }());
+    </script>
+</div>
+</body>
+</html>

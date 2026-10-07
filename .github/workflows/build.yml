@@ -1,0 +1,50 @@
+name: Build and publish
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore Jellyfin.Plugin.RemoteLibrary/Jellyfin.Plugin.RemoteLibrary.csproj
+      - run: dotnet build Jellyfin.Plugin.RemoteLibrary/Jellyfin.Plugin.RemoteLibrary.csproj -c Release --no-restore
+      - name: Package plugin
+        run: python3 scripts/package_plugin.py --output-dir dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Jellyfin.Plugin.RemoteLibrary
+          path: dist/*.zip
+      - name: Update catalog
+        if: github.event_name == 'push'
+        run: python3 scripts/package_plugin.py --output-dir dist --repository "$GITHUB_REPOSITORY" --update-manifest
+      - name: Publish release archive
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open("meta.json"))["version"])')
+          tag="v${version}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/*.zip --clobber
+          else
+            gh release create "$tag" dist/*.zip --title "Remote Library ${version}" --generate-notes
+          fi
+      - name: Publish catalog manifest
+        if: github.event_name == 'push'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add manifest.json
+          git diff --cached --quiet || git commit -m "Publish plugin catalog"
+          git push origin main

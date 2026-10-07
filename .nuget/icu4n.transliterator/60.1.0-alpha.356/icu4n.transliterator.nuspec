@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>ICU4N.Transliterator</id>
+    <version>60.1.0-alpha.356</version>
+    <authors>NightOwl888</authors>
+    <license type="file">LICENSE.txt</license>
+    <licenseUrl>https://aka.ms/deprecateLicenseUrl</licenseUrl>
+    <icon>unicode-icon-128x128.jpg</icon>
+    <projectUrl>https://github.com/NightOwl888/ICU4N/</projectUrl>
+    <iconUrl>https://raw.githubusercontent.com/NightOwl888/ICU4N/master/branding/unicode-icon-128x128.jpg</iconUrl>
+    <description>Transliteration support (phonetic conversion from one script to another) for ICU4N. ICU (International Components for Unicode) is a set of libraries providing Unicode and Globalization support for software applications. ICU4N is a .NET port of ICU4J.</description>
+    <releaseNotes>https://github.com/NightOwl888/ICU4N/releases/tag/60.1.0-alpha.356
+
+This is an early prerelease. Not all features are fully functional yet, and there may still be some gaps in functionality that haven't been accounted for. See https://github.com/NightOwl888/ICU4N for more info about what is functioning and what is not.</releaseNotes>
+    <copyright>Copyright © 2019 - 2022 ICU4N</copyright>
+    <tags>icu international components unicode globalization breakiterator normalizer messageformat unicodeset uts46 idna transliteration transliterate</tags>
+    <repository type="git" url="https://github.com/NightOwl888/ICU4N" commit="24cbe1cab43a16f1020488e766976edae4d5d238" />
+    <dependencies>
+      <group targetFramework=".NETFramework4.0">
+        <dependency id="ICU4N" version="60.1.0-alpha.356" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETFramework4.5.1">
+        <dependency id="ICU4N" version="60.1.0-alpha.356" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETStandard2.0">
+        <dependency id="ICU4N" version="60.1.0-alpha.356" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+  </metadata>
+</package>
