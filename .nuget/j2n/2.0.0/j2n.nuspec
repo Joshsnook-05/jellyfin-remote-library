@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>J2N</id>
+    <version>2.0.0</version>
+    <authors>NightOwl888</authors>
+    <license type="file">LICENSE.txt</license>
+    <licenseUrl>https://aka.ms/deprecateLicenseUrl</licenseUrl>
+    <icon>j2n-icon-100x100.png</icon>
+    <readme>readme.md</readme>
+    <projectUrl>https://github.com/NightOwl888/J2N/</projectUrl>
+    <iconUrl>https://raw.githubusercontent.com/NightOwl888/J2N/main/branding/j2n-icon-100x100.png</iconUrl>
+    <description>J2N is a library that helps bridge the gap between .NET and Java. It provides components to assist with porting Java code to .NET, such as collections, adapters, and extensions. It contains some features from Java that also make it generally useful in any .NET application.</description>
+    <releaseNotes>https://github.com/NightOwl888/J2N/releases/tag/2.0.0</releaseNotes>
+    <copyright>Copyright © 2019 - 2022 J2N</copyright>
+    <tags>java dotnet charsequence bytebuffer collections stringbuffer linkedhashset linkedhashmap comparable structural-equality treemap treeset stringtokenizer appendable contentequals codepoint bit-twiddle lru-cache</tags>
+    <repository type="git" url="https://github.com/NightOwl888/J2N" commit="ca530a621b935deeb854593acba0ebd103ceb35e" />
+    <dependencies>
+      <group targetFramework=".NETFramework4.0" />
+      <group targetFramework=".NETFramework4.5" />
+      <group targetFramework=".NETCoreApp3.0" />
+      <group targetFramework="net5.0" />
+      <group targetFramework="net6.0" />
+      <group targetFramework=".NETStandard2.0">
+        <dependency id="Microsoft.CSharp" version="4.4.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETStandard2.1">
+        <dependency id="Microsoft.CSharp" version="4.4.0" exclude="Build,Analyzers" />
+        <dependency id="System.Runtime.CompilerServices.Unsafe" version="4.5.0" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+    <frameworkAssemblies>
+      <frameworkAssembly assemblyName="Microsoft.CSharp" targetFramework=".NETFramework4.0, .NETFramework4.5" />
+    </frameworkAssemblies>
+  </metadata>
+</package>

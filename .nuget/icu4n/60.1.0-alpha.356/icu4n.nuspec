@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>ICU4N</id>
+    <version>60.1.0-alpha.356</version>
+    <authors>NightOwl888</authors>
+    <license type="file">LICENSE.txt</license>
+    <licenseUrl>https://aka.ms/deprecateLicenseUrl</licenseUrl>
+    <icon>unicode-icon-128x128.jpg</icon>
+    <projectUrl>https://github.com/NightOwl888/ICU4N/</projectUrl>
+    <iconUrl>https://raw.githubusercontent.com/NightOwl888/ICU4N/master/branding/unicode-icon-128x128.jpg</iconUrl>
+    <description>ICU (International Components for Unicode) is a set of libraries providing Unicode and Globalization support for software applications. It provides Text-boundary analysis (RuleBasedBreakIterator) as well as easy access to all of the many Unicode character properties, Unicode Normalization, Case Folding and other fundamental operations as specified by the Unicode Standard. ICU4N is a .NET port of ICU4J.</description>
+    <releaseNotes>https://github.com/NightOwl888/ICU4N/releases/tag/60.1.0-alpha.356
+
+This is an early prerelease. Not all features are fully functional yet, and there may still be some gaps in functionality that haven't been accounted for. See https://github.com/NightOwl888/ICU4N for more info about what is functioning and what is not.</releaseNotes>
+    <copyright>Copyright © 2019 - 2022 ICU4N</copyright>
+    <tags>icu international components unicode globalization breakiterator normalizer messageformat unicodeset uts46 idna</tags>
+    <repository type="git" url="https://github.com/NightOwl888/ICU4N" commit="24cbe1cab43a16f1020488e766976edae4d5d238" />
+    <dependencies>
+      <group targetFramework=".NETFramework4.0">
+        <dependency id="J2N" version="2.0.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETFramework4.5.1">
+        <dependency id="J2N" version="2.0.0" exclude="Build,Analyzers" />
+        <dependency id="Microsoft.Extensions.Caching.Memory" version="1.1.2" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETStandard2.0">
+        <dependency id="J2N" version="2.0.0" exclude="Build,Analyzers" />
+        <dependency id="Microsoft.Extensions.Caching.Memory" version="2.0.0" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+    <frameworkAssemblies>
+      <frameworkAssembly assemblyName="System.Runtime.Caching" targetFramework=".NETFramework4.0" />
+    </frameworkAssemblies>
+  </metadata>
+</package>
