@@ -330,19 +330,35 @@ public sealed partial class RemoteLibraryService
                         }
                     }
 
-                    if (config.EnableSeries && string.Equals(view.CollectionType, "tvshows", StringComparison.OrdinalIgnoreCase))
+                    if (config.EnableSeries && IsSeriesView(view, config))
                     {
                         _logger.LogInformation("Remote library reading shows from {Source}/{ViewName}", sourceLabel, view.Name);
                         UpdateSyncMessage($"Reading shows from {sourceLabel}/{view.Name}…");
                         var seriesItems = await GetAllItemsAsync(client, session.UserId, view.Id, "Series", cancellationToken).ConfigureAwait(false);
+                        var episodes = await GetAllItemsAsync(client, session.UserId, view.Id, "Episode", cancellationToken).ConfigureAwait(false);
+                        var nativeSeriesIds = episodes
+                            .Where(episode => !IsManagedRemoteItem(episode, remoteManagedMedia) && !string.IsNullOrWhiteSpace(episode.SeriesId))
+                            .Select(episode => episode.SeriesId!)
+                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        var nativeSeriesNames = episodes
+                            .Where(episode => !IsManagedRemoteItem(episode, remoteManagedMedia) && !string.IsNullOrWhiteSpace(episode.SeriesName))
+                            .Select(episode => SeriesLookupKey(episode.SeriesName))
+                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
                         foreach (var seriesItem in seriesItems)
                         {
-                            if (IsManagedRemoteItem(seriesItem, remoteManagedMedia))
+                            // A series can retain a Remote Source tag after genuine
+                            // episodes are added to it. Treat it as remote-only only
+                            // when all of its episodes are managed pointers too.
+                            if (IsManagedRemoteItem(seriesItem, remoteManagedMedia)
+                                && !nativeSeriesIds.Contains(seriesItem.Id)
+                                && !nativeSeriesNames.Contains(SeriesLookupKey(seriesItem.Name)))
                             {
                                 managedSeriesIds.Add(seriesItem.Id);
                                 managedSeriesNames.Add(SeriesLookupKey(seriesItem.Name));
                                 continue;
                             }
+                            managedSeriesIds.Remove(seriesItem.Id);
+                            managedSeriesNames.Remove(SeriesLookupKey(seriesItem.Name));
                             seriesById.TryAdd(seriesItem.Id, seriesItem);
                             var nameKey = SeriesLookupKey(seriesItem.Name);
                             if (!seriesByName.TryGetValue(nameKey, out var existingSeries)
@@ -352,7 +368,6 @@ public sealed partial class RemoteLibraryService
                             }
                         }
 
-                        var episodes = await GetAllItemsAsync(client, session.UserId, view.Id, "Episode", cancellationToken).ConfigureAwait(false);
                         foreach (var episode in episodes)
                         {
                             if (IsManagedRemoteItem(episode, remoteManagedMedia)
@@ -467,18 +482,31 @@ public sealed partial class RemoteLibraryService
                 var managedSeriesIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var managedSeriesNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                foreach (var view in views.Items.Where(view => string.Equals(view.CollectionType, "tvshows", StringComparison.OrdinalIgnoreCase)))
+                foreach (var view in views.Items.Where(view => IsSeriesView(view, config)))
                 {
                     var seriesItems = await GetAllItemsAsync(client, session.UserId, view.Id, "Series", cancellationToken).ConfigureAwait(false);
+                    var episodes = await GetAllItemsAsync(client, session.UserId, view.Id, "Episode", cancellationToken).ConfigureAwait(false);
+                    var nativeSeriesIds = episodes
+                        .Where(episode => !IsManagedRemoteItem(episode, managedMedia) && !string.IsNullOrWhiteSpace(episode.SeriesId))
+                        .Select(episode => episode.SeriesId!)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var nativeSeriesNames = episodes
+                        .Where(episode => !IsManagedRemoteItem(episode, managedMedia) && !string.IsNullOrWhiteSpace(episode.SeriesName))
+                        .Select(episode => SeriesLookupKey(episode.SeriesName))
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
                     foreach (var series in seriesItems)
                     {
-                        if (IsManagedRemoteItem(series, managedMedia))
+                        if (IsManagedRemoteItem(series, managedMedia)
+                            && !nativeSeriesIds.Contains(series.Id)
+                            && !nativeSeriesNames.Contains(SeriesLookupKey(series.Name)))
                         {
                             managedSeriesIds.Add(series.Id);
                             managedSeriesNames.Add(SeriesLookupKey(series.Name));
                             continue;
                         }
 
+                        managedSeriesIds.Remove(series.Id);
+                        managedSeriesNames.Remove(SeriesLookupKey(series.Name));
                         seriesById.TryAdd(series.Id, series);
                         seriesByName.TryAdd(SeriesLookupKey(series.Name), series);
                     }
@@ -1157,16 +1185,37 @@ public sealed partial class RemoteLibraryService
         => series is not null
             && series.Tags.Any(tag => string.Equals(tag, "anime", StringComparison.OrdinalIgnoreCase));
 
+    private static bool IsSeriesView(RemoteItem view, PluginConfiguration config)
+        => string.Equals(view.CollectionType, "tvshows", StringComparison.OrdinalIgnoreCase)
+            || (string.IsNullOrWhiteSpace(view.CollectionType)
+                && (string.Equals(view.Name, config.SeriesLibraryName, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(view.Name, config.AnimeLibraryName, StringComparison.OrdinalIgnoreCase)));
+
     private static bool IsManagedRemoteItem(RemoteItem item, RemoteManagedMedia managedMedia)
-        // Never re-export content that was itself imported by Remote Library. This
-        // includes pointers received through another server (A -> B -> C), even if
-        // a Jellyfin metadata refresh retained only the Remote Source tag and not
-        // the explicit Remote Library tag.
-        => item.Tags.Any(tag => string.Equals(tag, "Remote Library", StringComparison.OrdinalIgnoreCase)
-            || tag.StartsWith("Remote Source:", StringComparison.OrdinalIgnoreCase))
-            || IsRemoteLibraryPath(item.Path)
-            || managedMedia.Contains(item.Path)
-            || item.MediaSources.Any(source => IsRemoteLibraryPath(source.Path) || managedMedia.Contains(source.Path));
+    {
+        var paths = item.MediaSources
+            .Select(source => source.Path)
+            .Prepend(item.Path)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .ToList();
+
+        // Paths are stronger evidence than inherited metadata tags. A real episode
+        // can inherit a series-level Remote Source tag after remote gaps were added;
+        // its normal media path must keep it eligible for export. Managed pointers
+        // remain identifiable by their remote-library root or manifest entry.
+        if (paths.Any(path => IsRemoteLibraryPath(path) || managedMedia.Contains(path)))
+        {
+            return true;
+        }
+
+        if (paths.Count > 0)
+        {
+            return false;
+        }
+
+        return item.Tags.Any(tag => string.Equals(tag, "Remote Library", StringComparison.OrdinalIgnoreCase)
+            || tag.StartsWith("Remote Source:", StringComparison.OrdinalIgnoreCase));
+    }
 
     private static bool IsRemoteLibraryPath(string? path)
         => !string.IsNullOrWhiteSpace(path)
