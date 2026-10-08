@@ -313,6 +313,12 @@ public sealed partial class RemoteLibraryService
                         var movies = await GetAllItemsAsync(client, session.UserId, view.Id, "Movie", cancellationToken).ConfigureAwait(false);
                         foreach (var movie in movies)
                         {
+                            if (!HasPlayableMedia(movie))
+                            {
+                                invalidItemsSkipped++;
+                                continue;
+                            }
+
                             if (IsManagedRemoteItem(movie, remoteManagedMedia))
                             {
                                 continue;
@@ -343,11 +349,15 @@ public sealed partial class RemoteLibraryService
                         var seriesItems = await GetAllItemsAsync(client, session.UserId, view.Id, "Series", cancellationToken).ConfigureAwait(false);
                         var episodes = await GetAllItemsAsync(client, session.UserId, view.Id, "Episode", cancellationToken).ConfigureAwait(false);
                         var nativeSeriesIds = episodes
-                            .Where(episode => !IsManagedRemoteItem(episode, remoteManagedMedia) && !string.IsNullOrWhiteSpace(episode.SeriesId))
+                            .Where(episode => HasPlayableMedia(episode)
+                                && !IsManagedRemoteItem(episode, remoteManagedMedia)
+                                && !string.IsNullOrWhiteSpace(episode.SeriesId))
                             .Select(episode => episode.SeriesId!)
                             .ToHashSet(StringComparer.OrdinalIgnoreCase);
                         var nativeSeriesNames = episodes
-                            .Where(episode => !IsManagedRemoteItem(episode, remoteManagedMedia) && !string.IsNullOrWhiteSpace(episode.SeriesName))
+                            .Where(episode => HasPlayableMedia(episode)
+                                && !IsManagedRemoteItem(episode, remoteManagedMedia)
+                                && !string.IsNullOrWhiteSpace(episode.SeriesName))
                             .Select(episode => SeriesLookupKey(episode.SeriesName))
                             .ToHashSet(StringComparer.OrdinalIgnoreCase);
                         foreach (var seriesItem in seriesItems)
@@ -376,6 +386,12 @@ public sealed partial class RemoteLibraryService
 
                         foreach (var episode in episodes)
                         {
+                            if (!HasPlayableMedia(episode))
+                            {
+                                invalidItemsSkipped++;
+                                continue;
+                            }
+
                             if (IsManagedRemoteItem(episode, remoteManagedMedia)
                                 || (episode.SeriesId is not null && managedSeriesIds.Contains(episode.SeriesId))
                                 || (!string.IsNullOrWhiteSpace(episode.SeriesName)
@@ -403,7 +419,11 @@ public sealed partial class RemoteLibraryService
                     }
                     foreach (var episode in upcomingEpisodes)
                     {
-                        if (IsManagedRemoteItem(episode, remoteManagedMedia)
+                        // Calendar feeds can describe unaired, missing, virtual,
+                        // special, or extra episodes that have no playable media.
+                        // They belong in a calendar, not in the media library.
+                        if (!HasPlayableMedia(episode)
+                            || IsManagedRemoteItem(episode, remoteManagedMedia)
                             || (!string.IsNullOrWhiteSpace(episode.SeriesName)
                                 && managedSeriesNames.Contains(SeriesLookupKey(episode.SeriesName))))
                         {
@@ -499,11 +519,15 @@ public sealed partial class RemoteLibraryService
                     var seriesItems = await GetAllItemsAsync(client, session.UserId, view.Id, "Series", cancellationToken).ConfigureAwait(false);
                     var episodes = await GetAllItemsAsync(client, session.UserId, view.Id, "Episode", cancellationToken).ConfigureAwait(false);
                     var nativeSeriesIds = episodes
-                        .Where(episode => !IsManagedRemoteItem(episode, managedMedia) && !string.IsNullOrWhiteSpace(episode.SeriesId))
+                        .Where(episode => HasPlayableMedia(episode)
+                            && !IsManagedRemoteItem(episode, managedMedia)
+                            && !string.IsNullOrWhiteSpace(episode.SeriesId))
                         .Select(episode => episode.SeriesId!)
                         .ToHashSet(StringComparer.OrdinalIgnoreCase);
                     var nativeSeriesNames = episodes
-                        .Where(episode => !IsManagedRemoteItem(episode, managedMedia) && !string.IsNullOrWhiteSpace(episode.SeriesName))
+                        .Where(episode => HasPlayableMedia(episode)
+                            && !IsManagedRemoteItem(episode, managedMedia)
+                            && !string.IsNullOrWhiteSpace(episode.SeriesName))
                         .Select(episode => SeriesLookupKey(episode.SeriesName))
                         .ToHashSet(StringComparer.OrdinalIgnoreCase);
                     foreach (var series in seriesItems)
@@ -538,6 +562,7 @@ public sealed partial class RemoteLibraryService
                 {
                     if (episode.ParentIndexNumber is null || episode.IndexNumber is null
                         || string.IsNullOrWhiteSpace(episode.SeriesName)
+                        || !HasPlayableMedia(episode)
                         || IsManagedRemoteItem(episode, managedMedia)
                         || (episode.SeriesId is not null && managedSeriesIds.Contains(episode.SeriesId))
                         || managedSeriesNames.Contains(SeriesLookupKey(episode.SeriesName)))
@@ -860,7 +885,7 @@ public sealed partial class RemoteLibraryService
         {
             var path = "Shows/Upcoming"
                 + $"?UserId={Uri.EscapeDataString(userId)}"
-                + "&Fields=ProviderIds,Overview,PremiereDate,OriginalTitle,SeriesName,Genres,Tags,ImageTags,RunTimeTicks"
+                + "&Fields=ProviderIds,Overview,PremiereDate,OriginalTitle,SeriesName,Genres,Tags,Path,MediaSources,ImageTags,RunTimeTicks"
                 + "&EnableImages=false&EnableUserData=false"
                 + $"&StartIndex={start}&Limit={pageSize}";
             var page = await GetAsync<QueryResult>(client, path, cancellationToken).ConfigureAwait(false);
@@ -1331,6 +1356,14 @@ public sealed partial class RemoteLibraryService
             || tag.StartsWith("Remote Source:", StringComparison.OrdinalIgnoreCase));
     }
 
+    private static bool HasPlayableMedia(RemoteItem item)
+        => !item.IsVirtualItem
+            && !string.Equals(item.LocationType, "Virtual", StringComparison.OrdinalIgnoreCase)
+            && item.MediaSources
+                .Select(source => source.Path)
+                .Prepend(item.Path)
+                .Any(path => !string.IsNullOrWhiteSpace(path));
+
     private static bool IsRemoteLibraryPath(string? path)
         => !string.IsNullOrWhiteSpace(path)
             && (path.Contains("remote-library", StringComparison.OrdinalIgnoreCase)
@@ -1523,6 +1556,8 @@ public sealed partial class RemoteLibraryService
         public string? RemoteCalendarDate { get; set; }
         public string? Overview { get; set; }
         public string? Path { get; set; }
+        public string? LocationType { get; set; }
+        public bool IsVirtualItem { get; set; }
         public Dictionary<string, string> ProviderIds { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<string> Genres { get; set; } = [];
         public List<string> Tags { get; set; } = [];

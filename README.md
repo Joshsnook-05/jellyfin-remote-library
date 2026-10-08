@@ -15,6 +15,7 @@ Remote Library mirrors remote metadata as tiny `.strm` and `.nfo` files, then se
 - Missing remote episodes merged into an existing local series
 - Remote-to-remote deduplication using title, year, season, and episode
 - Imported remote pointers are never re-exported, preventing recursive A → B → C syncing
+- Only remotely playable media is mirrored; virtual, missing, and calendar-only metadata never becomes a stream pointer
 - Separate Movies, Shows, and Anime pointer folders
 - `Remote Source: NAME` metadata tags for source-aware clients and UI customizations
 - Range-aware playback proxy for seeking and direct play
@@ -89,7 +90,7 @@ When a server is offline, it is skipped and only that server's existing pointers
 
 On native/bare-metal Jellyfin installs, if the configured `/remote-library` path is not writable, the plugin automatically falls back to Jellyfin's writable data directory and saves the corrected path.
 
-When calendar sync is enabled, the plugin first reads each remote server's authenticated `JellyfinEnhanced/arr/calendar` feed used by Jellyfin Enhanced (Sonarr/Radarr releases). If Enhanced is unavailable or returns no events, it falls back to Jellyfin's native **Upcoming** feed. It creates normal episode metadata with the remote premiere date, which makes those entries appear in the local Jellyfin calendar. Existing local episodes and duplicate remote entries still win according to the normal matching rules.
+When calendar sync is enabled, the plugin first reads each remote server's authenticated `JellyfinEnhanced/arr/calendar` feed used by Jellyfin Enhanced (Sonarr/Radarr releases). If Enhanced is unavailable or returns no events, it falls back to Jellyfin's native **Upcoming** feed. Calendar data can enrich an episode that already has playable remote media, but calendar-only, missing, and virtual episode records are never written into the media library. Existing local episodes and duplicate remote entries still win according to the normal matching rules.
 
 For contributors or coding agents implementing the companion Jellyfin Enhanced changes, see [AGENTS_JELLYFIN_ENHANCED_CALENDAR.md](AGENTS_JELLYFIN_ENHANCED_CALENDAR.md).
 
