@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.0.4",
+        "changelog": "Prevent remote pointers being re-exported through legacy or incompatible peers when they cannot provide a managed-media manifest.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/Joshsnook-05/jellyfin-remote-library/releases/download/v1.0.4/jellyfin-plugin-remote-library_1.0.4.zip",
+        "checksum": "c81697a7fea549c4e4f84baeddffc8a4",
+        "timestamp": "2026-10-08T00:00:00.0000000Z"
+      },
+      {
         "version": "1.0.3",
         "changelog": "Sync movie and episode runtimes for Ends At, ensure show source badges match selected episode pointers, and adopt GPL-2.0-or-later.",
         "targetAbi": "12.1.0.0",
