@@ -6,6 +6,7 @@
     <AssemblyName>Jellyfin.Plugin.RemoteLibrary</AssemblyName>
     <RootNamespace>Jellyfin.Plugin.RemoteLibrary</RootNamespace>
     <Version>1.0.2</Version>
+    <PackageLicenseExpression>GPL-2.0-or-later</PackageLicenseExpression>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
