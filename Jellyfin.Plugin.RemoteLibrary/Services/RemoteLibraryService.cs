@@ -193,7 +193,9 @@ public sealed partial class RemoteLibraryService
         var offlineServers = 0;
         var seenRemoteMovies = new HashSet<string>(StringComparer.Ordinal);
         var seenRemoteEpisodes = new HashSet<string>(StringComparer.Ordinal);
-        var writtenRemoteSeries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // A series entry alone is not evidence that a server can stream the show.
+        // Keep its NFO tied to the first episode pointer actually selected for sync.
+        var selectedRemoteSeries = new Dictionary<string, RemoteSeriesMetadata>(StringComparer.OrdinalIgnoreCase);
         // Keep a single deterministic library root for a show across all paired
         // servers. One server may tag a series as anime while another does not;
         // choosing the folder once prevents seasons from becoming separate shows.
@@ -258,10 +260,13 @@ public sealed partial class RemoteLibraryService
             {
                 var libraryFolder = RemoteSeriesFolder(series, seriesName);
                 var seriesOutputKey = $"{libraryFolder}:{SeriesKey(seriesName, seriesYear)}";
-                if (series is not null && writtenRemoteSeries.Add(seriesOutputKey))
-                {
-                    WriteSeriesMetadata(outputRoot, libraryFolder, series, serverConfig.Id, config.StreamSecret, sourceLabel, desired);
-                }
+                selectedRemoteSeries.TryAdd(
+                    seriesOutputKey,
+                    new RemoteSeriesMetadata(
+                        libraryFolder,
+                        SeriesMetadataFor(series, episode, seriesName, seriesYear),
+                        serverConfig.Id,
+                        sourceLabel));
 
                 WriteEpisode(outputRoot, libraryFolder, episode, seriesName, seriesYear, serverConfig.Id, config.StreamSecret, sourceLabel, desired);
             }
@@ -424,6 +429,18 @@ public sealed partial class RemoteLibraryService
             }
         }
 
+        foreach (var selection in selectedRemoteSeries.Values)
+        {
+            WriteSeriesMetadata(
+                outputRoot,
+                selection.LibraryFolder,
+                selection.Series,
+                selection.ServerId,
+                config.StreamSecret,
+                selection.SourceLabel,
+                desired);
+        }
+
         var removed = 0;
         if (offlineServers == 0)
         {
@@ -463,7 +480,6 @@ public sealed partial class RemoteLibraryService
         Directory.CreateDirectory(Path.Combine(outputRoot, "Anime"));
         var local = config.SkipLocalMatches ? ScanLocalMedia("/media") : LocalInventory.Empty;
         var seenEpisodes = new HashSet<string>(StringComparer.Ordinal);
-        var writtenSeries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var serverConfig in servers)
         {
@@ -558,12 +574,10 @@ public sealed partial class RemoteLibraryService
                     }
 
                     var folder = IsAnime(series) ? "Anime" : "Shows";
-                    var seriesOutputKey = $"{folder}:{SeriesKey(seriesName, seriesYear)}";
                     var desired = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    if (series is not null && writtenSeries.Add(seriesOutputKey))
-                    {
-                        WriteSeriesMetadata(outputRoot, folder, series, serverConfig.Id, config.StreamSecret, sourceLabel, desired);
-                    }
+                    // Calendar events may be announced by a server that has no
+                    // streamable episode yet. The full library sync owns the
+                    // series NFO and writes it from a selected episode pointer.
                     WriteEpisode(outputRoot, folder, episode, seriesName, seriesYear, serverConfig.Id, config.StreamSecret, sourceLabel, desired);
                 }
 
@@ -770,7 +784,7 @@ public sealed partial class RemoteLibraryService
     {
         var client = _httpClientFactory.CreateClient(HttpClientName);
         client.BaseAddress = new Uri(serverUrl.TrimEnd('/') + "/", UriKind.Absolute);
-        var header = "MediaBrowser Client=\"Remote Library\", Device=\"GLaDOSfin\", DeviceId=\"remote-library-plugin\", Version=\"1.0.0\"";
+        var header = "MediaBrowser Client=\"Remote Library\", Device=\"GLaDOSfin\", DeviceId=\"remote-library-plugin\", Version=\"1.0.2\"";
         if (!string.IsNullOrWhiteSpace(token))
         {
             header += $", Token=\"{token}\"";
@@ -800,7 +814,7 @@ public sealed partial class RemoteLibraryService
         for (var start = 0; ; start += pageSize)
         {
             var path = $"Users/{Uri.EscapeDataString(userId)}/Items?ParentId={Uri.EscapeDataString(parentId)}"
-                + $"&Recursive=true&IncludeItemTypes={itemType}&Fields=ProviderIds,Overview,PremiereDate,OriginalTitle,SeriesName,Genres,Tags,Path,MediaSources,ImageTags"
+                + $"&Recursive=true&IncludeItemTypes={itemType}&Fields=ProviderIds,Overview,PremiereDate,OriginalTitle,SeriesName,Genres,Tags,Path,MediaSources,ImageTags,RunTimeTicks"
                 + $"&StartIndex={start}&Limit={pageSize}";
             var page = await GetAsync<QueryResult>(client, path, cancellationToken).ConfigureAwait(false);
             result.AddRange(page.Items);
@@ -842,7 +856,7 @@ public sealed partial class RemoteLibraryService
         {
             var path = "Shows/Upcoming"
                 + $"?UserId={Uri.EscapeDataString(userId)}"
-                + "&Fields=ProviderIds,Overview,PremiereDate,OriginalTitle,SeriesName,Genres,Tags,ImageTags"
+                + "&Fields=ProviderIds,Overview,PremiereDate,OriginalTitle,SeriesName,Genres,Tags,ImageTags,RunTimeTicks"
                 + "&EnableImages=false&EnableUserData=false"
                 + $"&StartIndex={start}&Limit={pageSize}";
             var page = await GetAsync<QueryResult>(client, path, cancellationToken).ConfigureAwait(false);
@@ -1033,6 +1047,27 @@ public sealed partial class RemoteLibraryService
         desired.Add(Path.GetFullPath(nfo));
     }
 
+    private static RemoteItem SeriesMetadataFor(RemoteItem? series, RemoteItem episode, string seriesName, int? seriesYear)
+    {
+        if (series is not null)
+        {
+            return series;
+        }
+
+        // Some views return episodes without their parent Series item. Generate
+        // source-specific show metadata so an NFO from a different server cannot
+        // survive indefinitely beside the newly selected episode pointers.
+        return new RemoteItem
+        {
+            Id = episode.SeriesId ?? episode.Id,
+            Name = seriesName,
+            ProductionYear = seriesYear,
+            Overview = episode.Overview,
+            ProviderIds = new Dictionary<string, string>(episode.ProviderIds, StringComparer.OrdinalIgnoreCase),
+            ImageTags = new Dictionary<string, string>(episode.ImageTags, StringComparer.OrdinalIgnoreCase)
+        };
+    }
+
     private static void WritePointerPair(
         string directory,
         string stem,
@@ -1071,6 +1106,9 @@ public sealed partial class RemoteLibraryService
             nfoRoot == "episodedetails" ? new XElement("showtitle", seriesName) : null,
             nfoRoot == "episodedetails" ? new XElement("season", item.ParentIndexNumber ?? 0) : null,
             nfoRoot == "episodedetails" ? new XElement("episode", item.IndexNumber ?? 0) : null,
+            nfoRoot != "tvshow" && RuntimeMinutes(item.RunTimeTicks) is { } runtime
+                ? new XElement("runtime", runtime)
+                : null,
             item.ProviderIds.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
                 .Select(pair => new XElement("uniqueid", new XAttribute("type", pair.Key.ToLowerInvariant()), pair.Value)),
             new XElement("tag", "Remote Library"),
@@ -1082,6 +1120,18 @@ public sealed partial class RemoteLibraryService
                 ? new XElement("thumb", $"http://127.0.0.1:8096/RemoteLibrary/Image/{Uri.EscapeDataString(serverId)}/{Uri.EscapeDataString(item.Id)}?secret={Uri.EscapeDataString(secret)}")
                 : null);
         return new XDocument(new XDeclaration("1.0", "utf-8", null), root);
+    }
+
+    private static long? RuntimeMinutes(long? runTimeTicks)
+    {
+        if (runTimeTicks is not > 0)
+        {
+            return null;
+        }
+
+        // Jellyfin's NFO importer reads runtime in whole minutes. Round up so a
+        // partial final minute is preserved for Ends At and other runtime users.
+        return (runTimeTicks.Value + TimeSpan.TicksPerMinute - 1) / TimeSpan.TicksPerMinute;
     }
 
     private static string EpisodeDisplayName(RemoteItem item)
@@ -1405,6 +1455,7 @@ public sealed partial class RemoteLibraryService
         public int? ParentIndexNumber { get; set; }
         public int? IndexNumber { get; set; }
         public string? PremiereDate { get; set; }
+        public long? RunTimeTicks { get; set; }
         public string? RemoteCalendarDate { get; set; }
         public string? Overview { get; set; }
         public string? Path { get; set; }
@@ -1419,6 +1470,8 @@ public sealed partial class RemoteLibraryService
     {
         public string? Path { get; set; }
     }
+
+    private sealed record RemoteSeriesMetadata(string LibraryFolder, RemoteItem Series, string ServerId, string SourceLabel);
 
     private sealed class RemoteManagedMedia
     {
