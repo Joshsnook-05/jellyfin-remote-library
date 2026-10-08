@@ -35,10 +35,20 @@ jobs:
         run: |
           version=$(python3 -c 'import json; print(json.load(open("meta.json"))["version"])')
           tag="v${version}"
+          archive="dist/jellyfin-plugin-remote-library_${version}.zip"
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" dist/*.zip --clobber
+            gh release view "$tag" --json assets --jq '.assets[].name' | while IFS= read -r asset; do
+              case "$asset" in
+                jellyfin-plugin-remote-library_*.zip)
+                  if [ "$asset" != "$(basename "$archive")" ]; then
+                    gh release delete-asset "$tag" "$asset" --yes
+                  fi
+                  ;;
+              esac
+            done
+            gh release upload "$tag" "$archive" --clobber
           else
-            gh release create "$tag" dist/*.zip --title "Remote Library ${version}" --generate-notes
+            gh release create "$tag" "$archive" --title "Remote Library ${version}" --generate-notes
           fi
       - name: Publish catalog manifest
         if: github.event_name == 'push'
