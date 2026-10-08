@@ -3,6 +3,7 @@ using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Jellyfin.Plugin.RemoteLibrary;
 
@@ -20,6 +21,7 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
                 AutomaticDecompression = System.Net.DecompressionMethods.All
             });
         serviceCollection.AddSingleton<RemoteLibraryService>();
+        serviceCollection.AddHostedService<RemoteLibraryStartupSyncService>();
         serviceCollection.AddSingleton<IStartupFilter, RemoteLibraryUiStartupFilter>();
     }
 }

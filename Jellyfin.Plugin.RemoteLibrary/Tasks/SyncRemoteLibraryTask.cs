@@ -23,7 +23,6 @@ public sealed class SyncRemoteLibraryTask : IScheduledTask
     public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
     {
         var minutes = Math.Clamp(Plugin.Instance?.Configuration.MediaSyncIntervalMinutes ?? 60, 5, 10080);
-        yield return new TaskTriggerInfo { Type = TaskTriggerInfoType.StartupTrigger };
         yield return new TaskTriggerInfo
         {
             Type = TaskTriggerInfoType.IntervalTrigger,

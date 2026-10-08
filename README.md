@@ -85,7 +85,7 @@ Pushing a new semantic plugin version (`major.minor.patch`) to `main` builds the
 
 Real local files always win. For a locally present series, the plugin adds pointers only for missing season and episode numbers. If more than one remote server contains the same item, the first enabled server in the configuration is preferred.
 
-When a server is offline, it is skipped and only that server's existing pointers are preserved. Stale pointers belonging to reachable servers are still removed, so one unavailable peer cannot prevent loop cleanup across the rest of a server mesh. Media sync also runs on startup by default, in addition to its configured interval; an administrator can select **Sync now** at any time.
+When a server is offline, it is skipped and only that server's existing pointers are preserved. Stale pointers belonging to reachable servers are still removed, so one unavailable peer cannot prevent loop cleanup across the rest of a server mesh. Media reconciliation runs automatically after every Jellyfin startup (including the restart after a plugin upgrade), in addition to its configured scheduled-task interval; an administrator can select **Sync now** at any time.
 
 On native/bare-metal Jellyfin installs, if the configured `/remote-library` path is not writable, the plugin automatically falls back to Jellyfin's writable data directory and saves the corrected path.
 
