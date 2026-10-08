@@ -191,6 +191,7 @@ public sealed partial class RemoteLibraryService
         var invalidItemsSkipped = 0;
         var onlineServers = 0;
         var offlineServers = 0;
+        var offlineServerIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seenRemoteMovies = new HashSet<string>(StringComparer.Ordinal);
         var seenRemoteEpisodes = new HashSet<string>(StringComparer.Ordinal);
         // A series entry alone is not evidence that a server can stream the show.
@@ -425,6 +426,7 @@ public sealed partial class RemoteLibraryService
             catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
             {
                 offlineServers++;
+                offlineServerIds.Add(serverConfig.Id);
                 _logger.LogWarning(exception, "Skipping unreachable remote library {Source} ({ServerUrl})", SourceLabel(serverConfig), serverConfig.ServerUrl);
             }
         }
@@ -441,18 +443,12 @@ public sealed partial class RemoteLibraryService
                 desired);
         }
 
-        var removed = 0;
-        if (offlineServers == 0)
-        {
-            UpdateSyncMessage("Removing stale pointers…");
-            removed = RemoveStaleGeneratedFiles(outputRoot, desired);
-            removed += SyncManagedLocalFiles(outputRoot, desiredLocalFiles);
-            removed += PruneOrphanedDirectories(outputRoot);
-        }
-        else
-        {
-            UpdateSyncMessage("Keeping pointers from offline servers until they can be checked again…");
-        }
+        UpdateSyncMessage(offlineServers == 0
+            ? "Removing stale pointers…"
+            : "Removing stale pointers while preserving offline servers…");
+        var removed = RemoveStaleGeneratedFiles(outputRoot, desired, offlineServerIds);
+        removed += SyncManagedLocalFiles(outputRoot, desiredLocalFiles, offlineServerIds);
+        removed += PruneOrphanedDirectories(outputRoot);
         _logger.LogInformation(
             "Remote library sync completed: {Movies} movies, {Episodes} episodes ({CalendarEpisodes} from calendar), {Skipped} local matches skipped, {Gaps} local-series gaps filled, {Invalid} invalid items skipped, {Removed} stale files removed",
             moviesAdded,
@@ -1166,14 +1162,18 @@ public sealed partial class RemoteLibraryService
         File.WriteAllText(path, content);
     }
 
-    private static int RemoveStaleGeneratedFiles(string root, HashSet<string> desired)
+    private static int RemoveStaleGeneratedFiles(
+        string root,
+        HashSet<string> desired,
+        HashSet<string> offlineServerIds)
     {
         var removed = 0;
         foreach (var extension in new[] { "*.strm", "*.nfo" })
         {
             foreach (var file in Directory.EnumerateFiles(root, extension, SearchOption.AllDirectories))
             {
-                if (!desired.Contains(Path.GetFullPath(file)))
+                if (!desired.Contains(Path.GetFullPath(file))
+                    && !IsOwnedByOfflineServer(file, offlineServerIds))
                 {
                     File.Delete(file);
                     removed++;
@@ -1202,7 +1202,10 @@ public sealed partial class RemoteLibraryService
         return removed;
     }
 
-    private static int SyncManagedLocalFiles(string outputRoot, HashSet<string> desired)
+    private static int SyncManagedLocalFiles(
+        string outputRoot,
+        HashSet<string> desired,
+        HashSet<string> offlineServerIds)
     {
         var manifest = Path.Combine(outputRoot, ".remote-library-local-files");
         var previous = File.Exists(manifest)
@@ -1221,6 +1224,12 @@ public sealed partial class RemoteLibraryService
 
             var extension = Path.GetExtension(fullPath);
             var content = File.ReadAllText(fullPath);
+            if (IsOwnedByOfflineServer(fullPath, offlineServerIds, content))
+            {
+                desired.Add(fullPath);
+                continue;
+            }
+
             var isManaged = string.Equals(extension, ".strm", StringComparison.OrdinalIgnoreCase)
                 ? content.Contains("/RemoteLibrary/Stream/", StringComparison.Ordinal)
                 : string.Equals(extension, ".nfo", StringComparison.OrdinalIgnoreCase)
@@ -1238,6 +1247,49 @@ public sealed partial class RemoteLibraryService
         WriteTextIfChanged(manifest, manifestContent);
         return removed;
     }
+
+    private static bool IsOwnedByOfflineServer(
+        string path,
+        HashSet<string> offlineServerIds,
+        string? content = null)
+    {
+        if (offlineServerIds.Count == 0 || !File.Exists(path))
+        {
+            return false;
+        }
+
+        content ??= File.ReadAllText(path);
+        if (offlineServerIds.Any(serverId => ContainsRemoteRoute(content, serverId)))
+        {
+            return true;
+        }
+
+        if (!string.Equals(Path.GetExtension(path), ".nfo", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var siblingStream = Path.ChangeExtension(path, ".strm");
+        if (File.Exists(siblingStream)
+            && offlineServerIds.Any(serverId => ContainsRemoteRoute(File.ReadAllText(siblingStream), serverId)))
+        {
+            return true;
+        }
+
+        // Series metadata has no same-name .strm. Preserve it when any retained
+        // episode below that series directory belongs to an offline server.
+        return string.Equals(Path.GetFileName(path), "tvshow.nfo", StringComparison.OrdinalIgnoreCase)
+            && Directory.EnumerateFiles(Path.GetDirectoryName(path)!, "*.strm", SearchOption.AllDirectories)
+                .Any(stream => offlineServerIds.Any(serverId => ContainsRemoteRoute(File.ReadAllText(stream), serverId)));
+    }
+
+    private static bool ContainsRemoteRoute(string content, string serverId)
+        => content.Contains(
+            $"/RemoteLibrary/Stream/{Uri.EscapeDataString(serverId)}/",
+            StringComparison.OrdinalIgnoreCase)
+            || content.Contains(
+                $"/RemoteLibrary/Image/{Uri.EscapeDataString(serverId)}/",
+                StringComparison.OrdinalIgnoreCase);
 
     private static bool IsAnime(RemoteItem? series)
         => series is not null

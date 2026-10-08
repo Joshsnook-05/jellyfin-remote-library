@@ -1,6 +1,6 @@
 {
   "category": "General",
-  "changelog": "Prevent remote pointers being re-exported through legacy or incompatible peers when they cannot provide a managed-media manifest.",
+  "changelog": "Remove stale loop pointers even when another remote server is offline, preserving only pointers owned by that offline server; run media sync on startup by default.",
   "description": "Synchronize and stream libraries from multiple remote Jellyfin servers without downloading their media.",
   "guid": "5bfb2af8-3575-4d2f-9041-621588e13bfa",
   "name": "Remote Library",
@@ -8,7 +8,7 @@
   "owner": "Josh Snook",
   "targetAbi": "12.1.0.0",
   "timestamp": "2026-10-08T00:00:00.0000000Z",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "status": "Active",
   "autoUpdate": true,
   "assemblies": ["Jellyfin.Plugin.RemoteLibrary.dll"]
