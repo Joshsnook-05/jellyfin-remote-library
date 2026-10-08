@@ -70,6 +70,21 @@ public sealed class RemoteLibraryController : ControllerBase
         return resource is null ? NotFound() : File(resource, "text/javascript; charset=utf-8");
     }
 
+    [HttpGet("Recommendations.js")]
+    [AllowAnonymous]
+    [Produces("text/javascript")]
+    public IActionResult RecommendationsScript()
+    {
+        var resource = typeof(RemoteLibraryController).Assembly
+            .GetManifestResourceStream("Jellyfin.Plugin.RemoteLibrary.Web.recommendations.js");
+        return resource is null ? NotFound() : File(resource, "text/javascript; charset=utf-8");
+    }
+
+    [HttpGet("Features")]
+    [Authorize]
+    public IActionResult Features()
+        => Ok(new { enableRecommendations = Plugin.Instance?.Configuration.EnableRecommendations ?? true });
+
     [HttpGet("Status")]
     [Authorize(Policy = "RequiresElevation")]
     public async Task<ActionResult<RemoteStatus>> Status([FromQuery] string serverId, CancellationToken cancellationToken)

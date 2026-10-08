@@ -1,6 +1,6 @@
 {
   "category": "General",
-  "changelog": "Require a real playable media source before creating movie or episode pointers, preventing virtual, missing, calendar-only, special, and extra metadata from becoming phantom library items.",
+  "changelog": "Add an enabled-by-default You Might Like home row that blends local and remote Jellyfin recommendations with Seerr, with a plugin settings toggle.",
   "description": "Synchronize and stream libraries from multiple remote Jellyfin servers without downloading their media.",
   "guid": "5bfb2af8-3575-4d2f-9041-621588e13bfa",
   "name": "Remote Library",
@@ -8,7 +8,7 @@
   "owner": "Josh Snook",
   "targetAbi": "12.1.0.0",
   "timestamp": "2026-10-08T00:00:00.0000000Z",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "status": "Active",
   "autoUpdate": true,
   "assemblies": ["Jellyfin.Plugin.RemoteLibrary.dll"]

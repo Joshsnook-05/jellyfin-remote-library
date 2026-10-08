@@ -158,6 +158,8 @@ Moonfin does offer this feature, however, mine also comes with added bonuses.
 
 whilst doing a library sync, mine also syncs together things like the JE calendar and the JE user reviews, a recommended section using all servers + seerr (if available locally), has indicators on the poster/thumbnail for if a server is unreachable whilst keeping the thumbnails still visible, and also doesnt matter how the hierarchy is formatted, it will do what it can to make it match your local hierarchy.
 
+The plugin now includes the combined **You Might Like** home row itself. It uses favourite and recently watched titles to blend recommendations already available across local and Remote Library media with Seerr suggestions when Jellyfin Enhanced and Seerr are available. The row is enabled by default and can be disabled from the Remote Library settings page.
+
 I also found that the jellyfin app seemed to run better on my TV than moonfin did due to it being slightly lightweight, but obviously other peoples milage may vary depending on if and what UI plugins you're running.
 
 </details>

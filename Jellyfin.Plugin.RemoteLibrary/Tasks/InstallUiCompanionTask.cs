@@ -7,9 +7,9 @@ namespace Jellyfin.Plugin.RemoteLibrary.Tasks;
 
 public sealed class InstallUiCompanionTask : IScheduledTask
 {
-    private const string ScriptTag = "<script plugin=\"Remote Library\" defer src=\"../RemoteLibrary/Integration.js?v=1.0.0\"></script>";
+    private const string ScriptTags = "<script plugin=\"Remote Library\" defer src=\"../RemoteLibrary/Integration.js?v=1.0.8\"></script>\n<script plugin=\"Remote Library\" defer src=\"../RemoteLibrary/Recommendations.js?v=1.0.8\"></script>";
     private static readonly Regex ExistingTag = new(
-        @"<script[^>]*(?:plugin=[""']Remote Library[""']|RemoteLibrary/Integration\.js)[^>]*>\s*</script>\s*",
+        @"<script[^>]*(?:plugin=[""']Remote Library[""']|RemoteLibrary/(?:Integration|Recommendations)\.js)[^>]*>\s*</script>\s*",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private readonly IApplicationPaths _applicationPaths;
     private readonly ILogger<InstallUiCompanionTask> _logger;
@@ -50,7 +50,7 @@ public sealed class InstallUiCompanionTask : IScheduledTask
             var withoutOldTag = ExistingTag.Replace(original, string.Empty);
             var close = withoutOldTag.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
             if (close < 0) throw new InvalidDataException("Jellyfin Web index.html has no closing body tag.");
-            var updated = withoutOldTag[..close] + ScriptTag + Environment.NewLine + withoutOldTag[close..];
+            var updated = withoutOldTag[..close] + ScriptTags + Environment.NewLine + withoutOldTag[close..];
             if (!string.Equals(original, updated, StringComparison.Ordinal))
             {
                 File.WriteAllText(indexPath, updated);

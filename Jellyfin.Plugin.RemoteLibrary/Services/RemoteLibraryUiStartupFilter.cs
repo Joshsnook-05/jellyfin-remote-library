@@ -71,14 +71,26 @@ public sealed class RemoteLibraryUiStartupFilter : IStartupFilter
         if (isIndex)
         {
             var close = content.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
-            if (close >= 0 && content.IndexOf("/RemoteLibrary/Integration.js", StringComparison.OrdinalIgnoreCase) < 0)
+            if (close >= 0)
             {
-                content = content[..close]
-                    + "<script plugin=\"Remote Library\" defer src=\"../RemoteLibrary/Integration.js?v=1.0.0\"></script>\n"
-                    + content[close..];
-                if (Interlocked.Exchange(ref _loggedIndexInjection, 1) == 0)
+                var scripts = string.Empty;
+                if (content.IndexOf("/RemoteLibrary/Integration.js", StringComparison.OrdinalIgnoreCase) < 0)
                 {
-                    _logger.LogInformation("Remote Library: injected the bundled Jellyfin Enhanced compatibility bridge.");
+                    scripts += "<script plugin=\"Remote Library\" defer src=\"../RemoteLibrary/Integration.js?v=1.0.8\"></script>\n";
+                }
+
+                if (content.IndexOf("/RemoteLibrary/Recommendations.js", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    scripts += "<script plugin=\"Remote Library\" defer src=\"../RemoteLibrary/Recommendations.js?v=1.0.8\"></script>\n";
+                }
+
+                if (scripts.Length > 0)
+                {
+                    content = content[..close] + scripts + content[close..];
+                    if (Interlocked.Exchange(ref _loggedIndexInjection, 1) == 0)
+                    {
+                        _logger.LogInformation("Remote Library: injected its bundled browser integrations.");
+                    }
                 }
             }
         }

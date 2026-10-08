@@ -37,6 +37,8 @@
                 <label class="emby-checkbox-label"><input id="EnableMovies" type="checkbox" is="emby-checkbox"><span>Include movies</span></label>
                 <label class="emby-checkbox-label"><input id="EnableSeries" type="checkbox" is="emby-checkbox"><span>Include shows and episodes</span></label>
                 <label class="emby-checkbox-label"><input id="EnableCalendar" type="checkbox" is="emby-checkbox"><span>Sync remote upcoming episodes into the Jellyfin calendar</span></label>
+                <label class="emby-checkbox-label"><input id="EnableRecommendations" type="checkbox" is="emby-checkbox"><span>Show the combined “You Might Like” recommendations row</span></label>
+                <p class="fieldDescription">Combines recommendations from local and remote Jellyfin media with Seerr when Jellyfin Enhanced and Seerr are available.</p>
                 <label class="emby-checkbox-label"><input id="SkipLocalMatches" type="checkbox" is="emby-checkbox"><span>Prefer local movies and episodes; only add remote gaps</span></label>
 
                 <h3>Resync intervals</h3>
@@ -107,6 +109,7 @@
                 ['OutputPath', 'MovieLibraryName', 'SeriesLibraryName', 'AnimeLibraryName'].forEach(id => value(id).value = config[id] || '');
                 ['MediaSyncIntervalMinutes', 'CalendarSyncIntervalMinutes', 'ReviewSyncIntervalMinutes'].forEach(id => value(id).value = config[id] || (id === 'ReviewSyncIntervalMinutes' ? 5 : 60));
                 ['EnableMovies', 'EnableSeries', 'EnableCalendar', 'SkipLocalMatches'].forEach(id => value(id).checked = !!config[id]);
+                value('EnableRecommendations').checked = config.EnableRecommendations !== false;
                 const servers = config.Servers && config.Servers.length ? config.Servers : (config.ServerUrl ? [{
                     Id: serverId(), ServerUrl: config.ServerUrl, SourceLabel: config.SourceLabel,
                     AccessToken: config.AccessToken, RemoteUserId: config.RemoteUserId,
@@ -121,7 +124,7 @@
                 const config = await ApiClient.getPluginConfiguration(pluginId);
                 ['OutputPath', 'MovieLibraryName', 'SeriesLibraryName', 'AnimeLibraryName'].forEach(id => config[id] = value(id).value.trim());
                 ['MediaSyncIntervalMinutes', 'CalendarSyncIntervalMinutes', 'ReviewSyncIntervalMinutes'].forEach(id => config[id] = Math.max(5, Math.min(10080, parseInt(value(id).value, 10) || (id === 'ReviewSyncIntervalMinutes' ? 5 : 60))));
-                ['EnableMovies', 'EnableSeries', 'EnableCalendar', 'SkipLocalMatches'].forEach(id => config[id] = value(id).checked);
+                ['EnableMovies', 'EnableSeries', 'EnableCalendar', 'EnableRecommendations', 'SkipLocalMatches'].forEach(id => config[id] = value(id).checked);
                 config.Servers = readServers();
                 await ApiClient.updatePluginConfiguration(pluginId, config);
                 currentConfig = config;
