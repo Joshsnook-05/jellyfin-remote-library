@@ -784,7 +784,7 @@ public sealed partial class RemoteLibraryService
     {
         var client = _httpClientFactory.CreateClient(HttpClientName);
         client.BaseAddress = new Uri(serverUrl.TrimEnd('/') + "/", UriKind.Absolute);
-        var header = "MediaBrowser Client=\"Remote Library\", Device=\"GLaDOSfin\", DeviceId=\"remote-library-plugin\", Version=\"1.0.2\"";
+        var header = "MediaBrowser Client=\"Remote Library\", Device=\"GLaDOSfin\", DeviceId=\"remote-library-plugin\", Version=\"1.0.3\"";
         if (!string.IsNullOrWhiteSpace(token))
         {
             header += $", Token=\"{token}\"";
