@@ -103,7 +103,7 @@ Remote-source badges on normal Jellyfin cards are supplied by the bundled bridge
 
 The bridge does not overwrite third-party files and safely no-ops when Jellyfin Enhanced is not installed. The implementation notes for agents working on the Enhanced UI remain in `AGENTS_JELLYFIN_ENHANCED_CALENDAR.md`.
 
-Remote Library also ignores items tagged `Remote Library` (or located under a `remote-library` path) when reading a remote server. This prevents two servers that sync each other from recursively duplicating pointers.
+Remote Library never re-exports imported pointers. Current peers exchange an authenticated managed-media manifest, which precisely identifies pointers even when they are used to fill a gap in a local series. If a peer is older or incompatible and cannot supply that manifest, Remote Library fails closed and excludes items carrying the `Remote Library`/`Remote Source` marker tags. This prevents a server mesh from recursively duplicating pointers by default; update all peers for the most precise handling of mixed local-and-remote series.
 
 ## Security
 

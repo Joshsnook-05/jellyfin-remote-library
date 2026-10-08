@@ -825,7 +825,7 @@ public sealed partial class RemoteLibraryService
         }
     }
 
-    private static async Task<RemoteManagedMedia> GetRemoteManagedMediaAsync(
+    private async Task<RemoteManagedMedia> GetRemoteManagedMediaAsync(
         HttpClient client,
         CancellationToken cancellationToken)
     {
@@ -841,7 +841,15 @@ public sealed partial class RemoteLibraryService
             or System.Net.HttpStatusCode.Forbidden
             or System.Net.HttpStatusCode.Unauthorized)
         {
-            return RemoteManagedMedia.Empty;
+            // Older peers cannot provide the manifest. Do not let that turn them
+            // into a re-export path: their Remote Library NFO tags are the only
+            // remaining way to identify pointers. This is deliberately stricter
+            // than the manifest case, where a normal media path can prove that an
+            // episode is native even if its parent series retained a remote tag.
+            _logger.LogWarning(
+                "Remote server {ServerUrl} does not expose a managed-media manifest; using legacy Remote Library tags to prevent nested imports",
+                client.BaseAddress);
+            return RemoteManagedMedia.LegacyFallback;
         }
     }
 
@@ -1249,20 +1257,24 @@ public sealed partial class RemoteLibraryService
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .ToList();
 
-        // Paths are stronger evidence than inherited metadata tags. A real episode
-        // can inherit a series-level Remote Source tag after remote gaps were added;
-        // its normal media path must keep it eligible for export. Managed pointers
-        // remain identifiable by their remote-library root or manifest entry.
+        // A managed path is always conclusive, irrespective of peer version.
         if (paths.Any(path => IsRemoteLibraryPath(path) || managedMedia.Contains(path)))
         {
             return true;
         }
 
-        if (paths.Count > 0)
+        // With a current peer, the manifest is authoritative. A real episode can
+        // inherit a series-level Remote Source tag after a remote gap is added, so
+        // its ordinary media path must remain eligible for export.
+        if (managedMedia.HasAuthoritativeManifest && paths.Count > 0)
         {
             return false;
         }
 
+        // A legacy peer has no manifest. Fail closed on the marker tags rather
+        // than copying a pointer through A -> B -> C. The conservative behaviour
+        // only applies to old/incompatible peers; updated peers use the precise
+        // manifest path above.
         return item.Tags.Any(tag => string.Equals(tag, "Remote Library", StringComparison.OrdinalIgnoreCase)
             || tag.StartsWith("Remote Source:", StringComparison.OrdinalIgnoreCase));
     }
@@ -1475,16 +1487,22 @@ public sealed partial class RemoteLibraryService
 
     private sealed class RemoteManagedMedia
     {
-        public static RemoteManagedMedia Empty { get; } = new([], []);
+        public static RemoteManagedMedia LegacyFallback { get; } = new([], [], hasAuthoritativeManifest: false);
 
         private readonly IReadOnlyList<string> _roots;
         private readonly HashSet<string> _paths;
 
-        public RemoteManagedMedia(IEnumerable<string> roots, IEnumerable<string> paths)
+        public RemoteManagedMedia(
+            IEnumerable<string> roots,
+            IEnumerable<string> paths,
+            bool hasAuthoritativeManifest = true)
         {
             _roots = roots.Select(Normalize).Where(path => path.Length > 0).ToList();
             _paths = paths.Select(Normalize).Where(path => path.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            HasAuthoritativeManifest = hasAuthoritativeManifest;
         }
+
+        public bool HasAuthoritativeManifest { get; }
 
         public bool Contains(string? path)
         {
