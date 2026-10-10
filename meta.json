@@ -1,14 +1,14 @@
 {
   "category": "General",
-  "changelog": "Add an enabled-by-default You Might Like home row that blends local and remote Jellyfin recommendations with Seerr, with a plugin settings toggle.",
+  "changelog": "Add multi-source metadata and inherited season attribution, rank remote sources by online status and measured latency, expose source-health explanations, and eliminate duplicate poster badges when GLaDOS UI is active.",
   "description": "Synchronize and stream libraries from multiple remote Jellyfin servers without downloading their media.",
   "guid": "5bfb2af8-3575-4d2f-9041-621588e13bfa",
   "name": "Remote Library",
   "overview": "Multi-server remote Jellyfin library pointers with local-first deduplication.",
   "owner": "Josh Snook",
   "targetAbi": "12.1.0.0",
-  "timestamp": "2026-10-08T00:00:00.0000000Z",
-  "version": "1.0.8",
+  "timestamp": "2026-10-10T00:00:00.0000000Z",
+  "version": "1.0.12",
   "status": "Active",
   "autoUpdate": true,
   "assemblies": ["Jellyfin.Plugin.RemoteLibrary.dll"]

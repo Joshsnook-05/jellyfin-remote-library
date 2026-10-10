@@ -76,12 +76,12 @@ public sealed class RemoteLibraryUiStartupFilter : IStartupFilter
                 var scripts = string.Empty;
                 if (content.IndexOf("/RemoteLibrary/Integration.js", StringComparison.OrdinalIgnoreCase) < 0)
                 {
-                    scripts += "<script plugin=\"Remote Library\" defer src=\"../RemoteLibrary/Integration.js?v=1.0.8\"></script>\n";
+                    scripts += "<script plugin=\"Remote Library\" defer src=\"../RemoteLibrary/Integration.js?v=1.0.12\"></script>\n";
                 }
 
                 if (content.IndexOf("/RemoteLibrary/Recommendations.js", StringComparison.OrdinalIgnoreCase) < 0)
                 {
-                    scripts += "<script plugin=\"Remote Library\" defer src=\"../RemoteLibrary/Recommendations.js?v=1.0.8\"></script>\n";
+                    scripts += "<script plugin=\"Remote Library\" defer src=\"../RemoteLibrary/Recommendations.js?v=1.0.12\"></script>\n";
                 }
 
                 if (scripts.Length > 0)

@@ -10,6 +10,8 @@
   const reviewAvatarUrls = new Map();
   const sourceBadgeCache = new Map();
   const sourceBadgeRequests = new Map();
+  const reachabilityCache = { checkedAt: 0, sources: [] };
+  let trustPanelTimer = 0;
   const api = () => (typeof ApiClient !== "undefined" ? ApiClient : null);
   const jfJson = async (path) => {
     const jeApi = window.JellyfinEnhanced?.core?.api;
@@ -18,9 +20,10 @@
     if (!client?.getJSON) return null;
     return client.getJSON(client.getUrl(path));
   };
-  const sourceFromTags = (tags) => (Array.isArray(tags) ? tags : [])
+  const sourcesFromTags = (tags) => [...new Set((Array.isArray(tags) ? tags : [])
     .filter((tag) => /^Remote Source:\s*/i.test(tag || ""))
-    .map((tag) => tag.replace(/^Remote Source:\s*/i, "").trim()).filter(Boolean)[0] || null;
+    .map((tag) => tag.replace(/^Remote Source:\s*/i, "").trim()).filter(Boolean))];
+  const sourceFromTags = (tags) => sourcesFromTags(tags)[0] || null;
   const calendarDateFromTags = (tags) => (Array.isArray(tags) ? tags : [])
     .map((tag) => String(tag || "").match(/^Remote Calendar Date:\s*(.+)$/i)?.[1]?.trim())
     .find(Boolean) || null;
@@ -33,9 +36,10 @@
       .card .remote-library-source-badge {
         position: absolute; z-index: 30; top: .55rem; left: .55rem;
         display: inline-flex; align-items: center; max-width: calc(100% - 1.1rem);
-        padding: .3rem .55rem; border: 1px solid rgba(255,255,255,.22);
-        border-radius: 999px; color: #fff; background: rgba(9,20,31,.88);
-        box-shadow: 0 2px 8px rgba(0,0,0,.38); font-size: .72rem;
+        padding: .3rem .55rem; border: 1px solid rgba(255,255,255,.46);
+        border-radius: 999px; color: #fff; background: linear-gradient(145deg,rgba(255,255,255,.3),rgba(255,255,255,.13));
+        box-shadow: 0 8px 22px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.35);font-size: .72rem;
+        backdrop-filter:blur(18px) saturate(155%) brightness(1.1);-webkit-backdrop-filter:blur(18px) saturate(155%) brightness(1.1);
         font-weight: 700; letter-spacing: .06em; line-height: 1;
         text-transform: uppercase; white-space: nowrap; overflow: hidden;
         text-overflow: ellipsis; pointer-events: none;
@@ -45,6 +49,22 @@
         border-radius: 50%; background: #7dd3fc; box-shadow: 0 0 8px rgba(125,211,252,.8);
         content: "";
       }
+      .card .remote-library-source-badge.is-offline::before { background:#fb7185;box-shadow:0 0 8px rgba(251,113,133,.8); }
+      #itemDetailPage .mainDetailButtons,#itemDetailPage .detailPagePrimaryContent { overflow:visible!important; }
+      .remote-library-trust { position:relative;z-index:12;display:inline-flex;margin:.35rem .45rem .35rem 0;vertical-align:middle;overflow:visible; }
+      .remote-library-trust__button { display:inline-flex;align-items:center;gap:.46rem;min-height:2.4rem;padding:.5rem .8rem;border:1px solid rgba(255,255,255,.46);border-radius:999px;color:#fff;background:linear-gradient(145deg,rgba(255,255,255,.3),rgba(255,255,255,.12));box-shadow:0 10px 28px rgba(0,0,0,.2),inset 0 1px rgba(255,255,255,.38);cursor:pointer;font:inherit;font-size:.82rem;font-weight:750;backdrop-filter:blur(20px) saturate(155%) brightness(1.12);-webkit-backdrop-filter:blur(20px) saturate(155%) brightness(1.12); }
+      .remote-library-trust__button:focus-visible { outline:2px solid #84d8ff;outline-offset:3px; }
+      .remote-library-trust__dot { width:.52rem;height:.52rem;border-radius:50%;color:#5ee6a8;background:currentColor;box-shadow:0 0 9px currentColor; }
+      .remote-library-trust.is-offline .remote-library-trust__dot { color:#fb7185; }
+      .remote-library-trust__panel { position:absolute;z-index:2250;top:calc(100% + .55rem);left:0;box-sizing:border-box;width:min(24rem,calc(100vw - 2rem));padding:1rem;border:1px solid rgba(255,255,255,.5);border-radius:18px;color:#fff;background:linear-gradient(145deg,rgba(255,255,255,.34),rgba(255,255,255,.14));box-shadow:0 24px 55px rgba(0,0,0,.32),inset 0 1px rgba(255,255,255,.42);backdrop-filter:blur(28px) saturate(155%) brightness(1.08);-webkit-backdrop-filter:blur(28px) saturate(155%) brightness(1.08); }
+      .remote-library-trust__panel[hidden] { display:none; }
+      .remote-library-trust__panel strong { display:block;margin-bottom:.35rem; }
+      .remote-library-trust__panel p { margin:.3rem 0 .8rem;color:rgba(255,255,255,.8);line-height:1.45; }
+      .remote-library-trust__panel label { display:block;margin:.8rem 0 .35rem;color:rgba(255,255,255,.78);font-size:.75rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase; }
+      .remote-library-trust__panel select { box-sizing:border-box;width:100%;min-height:2.5rem;padding:.45rem .65rem;border:1px solid rgba(255,255,255,.5);border-radius:10px;color:#17202b;background:rgba(255,255,255,.86);font:inherit; }
+      .remote-library-trust__panel option { color:#17202b;background:#fff; }
+      .remote-library-trust__hint { display:block;margin-top:.55rem;color:rgba(255,255,255,.68);font-size:.72rem;line-height:1.4; }
+      @media(max-width:50em){.remote-library-trust__panel{position:fixed;top:auto;right:1rem;bottom:5.3rem;left:1rem;width:auto;}}
     `;
     document.head.appendChild(style);
   }
@@ -56,7 +76,7 @@
     return href.match(/[?&]id=([^&#]+)/)?.[1] || null;
   };
 
-  async function remoteSourceForItem(userId, itemId) {
+  async function remoteSourcesForItem(userId, itemId) {
     const key = `${userId}:${itemId}`;
     if (sourceBadgeCache.has(key)) return sourceBadgeCache.get(key);
     let request = sourceBadgeRequests.get(key);
@@ -64,9 +84,15 @@
       request = (async () => {
         const client = api();
         const item = await client?.getItem?.(userId, itemId);
-        const source = sourceFromTags(item?.Tags);
-        sourceBadgeCache.set(key, source);
-        return source;
+        let sources = sourcesFromTags(item?.Tags);
+        if (!sources.length && ["Series", "Season"].includes(item?.Type) && client?.getItems) {
+          const children = await client.getItems(userId, {
+            ParentId: itemId, Recursive: true, IncludeItemTypes: "Episode", Fields: "Tags", Limit: 500
+          });
+          sources = [...new Set((children?.Items || []).flatMap(child => sourcesFromTags(child?.Tags)))];
+        }
+        sourceBadgeCache.set(key, sources);
+        return sources;
       })();
       sourceBadgeRequests.set(key, request);
     }
@@ -74,7 +100,15 @@
     finally { if (sourceBadgeRequests.get(key) === request) sourceBadgeRequests.delete(key); }
   }
 
+  async function remoteSourceForItem(userId, itemId) {
+    return (await remoteSourcesForItem(userId, itemId))[0] || null;
+  }
+
   async function addSourceBadge(card) {
+    if (document.getElementById("gladosPrimaryNav")) {
+      card.querySelectorAll(".remote-library-source-badge").forEach(badge => badge.remove());
+      return;
+    }
     const client = api();
     const userId = client?.getCurrentUserId?.();
     const itemId = cardItemId(card);
@@ -89,10 +123,16 @@
     catch (_) { sourceBadgeCache.delete(`${userId}:${itemId}`); }
     if (!source || card.dataset.remoteLibrarySourceId !== itemId
         || card.querySelector(".remote-library-source-badge, .glados-source-badge")) return;
+    const itemSources = await remoteSourcesForItem(userId, itemId);
     const badge = document.createElement("span");
     badge.className = "remote-library-source-badge";
-    badge.textContent = source;
-    badge.title = `Remote source: ${source}`;
+    badge.textContent = itemSources.length > 1 ? "Remote" : source;
+    const sources = await loadReachability();
+    const health = sources.find(entry => entry.label.toLowerCase() === source.toLowerCase());
+    badge.classList.toggle("is-offline", health?.online === false);
+    badge.title = health?.online === false
+      ? `${source} is offline; playback will return when it reconnects.`
+      : `Remote source: ${source}${health ? " (online)" : ""}`;
     (card.querySelector(".cardScalable") || card.querySelector(".cardBox") || card).appendChild(badge);
   }
 
@@ -101,6 +141,10 @@
   function scanSourceBadges() {
     badgeScanFrame = 0;
     installSourceBadgeStyles();
+    if (document.getElementById("gladosPrimaryNav")) {
+      document.querySelectorAll(".remote-library-source-badge").forEach(badge => badge.remove());
+      return;
+    }
     if (!badgeObserver && "IntersectionObserver" in window) {
       badgeObserver = new IntersectionObserver((entries) => entries.forEach((entry) => {
         if (!entry.isIntersecting) return;
@@ -119,6 +163,105 @@
   const scheduleBadgeScan = () => {
     if (!badgeScanFrame) badgeScanFrame = window.requestAnimationFrame(scanSourceBadges);
   };
+
+  async function loadReachability(force = false) {
+    if (!force && Date.now() - reachabilityCache.checkedAt < 8000) return reachabilityCache.sources;
+    try {
+      const data = await jfJson("/RemoteLibrary/Reachability");
+      reachabilityCache.sources = (data?.Servers || data?.servers || []).map(entry => ({
+        label: entry.SourceLabel || entry.sourceLabel || "Remote",
+        online: entry.Online ?? entry.online ?? false,
+        latencyMs: entry.LatencyMs ?? entry.latencyMs ?? Number.POSITIVE_INFINITY
+      }));
+      reachabilityCache.checkedAt = Date.now();
+    } catch (_) { /* Cached state remains useful during a transient failure. */ }
+    return reachabilityCache.sources;
+  }
+
+  function detailItemId() {
+    return new URLSearchParams((location.hash || "").split("?")[1] || "").get("id");
+  }
+
+  const itemHasLocalFile = item => !!item?.Path
+    && !item.IsVirtualItem
+    && !/\.strm$/i.test(item.Path)
+    && !/^\/remote-library\//i.test(item.Path);
+
+  async function locallyAvailable(client, userId, item) {
+    if (itemHasLocalFile(item)) return true;
+    if (!["Series", "Season"].includes(item?.Type) || !client?.getItems) return false;
+    const children = await client.getItems(userId, {
+      ParentId: item.Id, Recursive: true, IncludeItemTypes: "Episode", Fields: "Tags,Path,IsVirtualItem", Limit: 500
+    });
+    return (children?.Items || []).some(itemHasLocalFile);
+  }
+
+  async function mountTrustPanel() {
+    const client = api();
+    const userId = client?.getCurrentUserId?.();
+    const id = detailItemId();
+    const page = document.querySelector("#itemDetailPage:not(.hide)");
+    if (!userId || !id || !page) return;
+    const old = page.querySelector(".remote-library-trust");
+    if (old?.dataset.itemId === id) return;
+    old?.remove();
+    let item;
+    try { item = await client.getItem(userId, id); } catch (_) { return; }
+    if (await locallyAvailable(client, userId, item)) return;
+    const itemSources = await remoteSourcesForItem(userId, id);
+    if (!itemSources.length || detailItemId() !== id) return;
+    const sources = await loadReachability();
+    const ranked = itemSources.map(name => ({
+      name,
+      health: sources.find(entry => entry.label.toLowerCase() === name.toLowerCase())
+    })).sort((a, b) => {
+      const onlineDelta = Number(b.health?.online !== false) - Number(a.health?.online !== false);
+      return onlineDelta || (a.health?.latencyMs ?? Number.POSITIVE_INFINITY) - (b.health?.latencyMs ?? Number.POSITIVE_INFINITY);
+    });
+    const selected = ranked[0];
+    const source = selected.name;
+    const online = selected.health?.online !== false;
+    const badgeLabel = itemSources.length > 1 ? "Remote" : source;
+    const host = document.createElement("span");
+    host.className = `remote-library-trust${online ? "" : " is-offline"}`;
+    host.dataset.itemId = id;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "remote-library-trust__button";
+    button.setAttribute("aria-expanded", "false");
+    const dot = document.createElement("span");
+    dot.className = "remote-library-trust__dot";
+    dot.setAttribute("aria-hidden", "true");
+    const label = document.createElement("span");
+    label.textContent = badgeLabel;
+    button.append(dot, label);
+    const panel = document.createElement("span");
+    panel.className = "remote-library-trust__panel";
+    panel.hidden = true;
+    const title = document.createElement("strong");
+    title.textContent = online ? `Streaming from ${source}` : `${source} is temporarily offline`;
+    const copy = document.createElement("p");
+    copy.textContent = online
+      ? "This title is proxied securely through GLaDOS.TV. Your remote account credentials are never sent to this browser."
+      : "The title and artwork stay visible. Playback will become available automatically when the source reconnects.";
+    const hint = document.createElement("small");
+    hint.className = "remote-library-trust__hint";
+    const latency = Number.isFinite(selected.health?.latencyMs) ? ` (${selected.health.latencyMs} ms)` : "";
+    hint.textContent = `Automatic source selection · local first, then the fastest online source${latency}.`;
+    panel.append(title, copy, hint);
+    button.addEventListener("click", () => {
+      panel.hidden = !panel.hidden;
+      button.setAttribute("aria-expanded", String(!panel.hidden));
+    });
+    host.append(button, panel);
+    const target = page.querySelector(".mainDetailButtons, .detailPagePrimaryContent");
+    target?.append(host);
+  }
+
+  function scheduleTrustPanel() {
+    window.clearTimeout(trustPanelTimer);
+    trustPanelTimer = window.setTimeout(() => mountTrustPanel().catch(() => {}), 120);
+  }
   const titleKey = (event) => {
     if (!event || event.releaseType !== "Episode" || event.seasonNumber == null || event.episodeNumber == null) return null;
     return String(event.title || "").toLowerCase().replace(/[^a-z0-9]+/g, "") + "|" + event.seasonNumber + "|" + event.episodeNumber;
@@ -227,10 +370,12 @@
     if (infoPopupTimer) return;
     infoPopupTimer = window.setTimeout(() => { infoPopupTimer = 0; mountInfoPopupReviews().catch(() => {}); }, 150);
   };
-  new MutationObserver(() => { watchInfoPopups(); scheduleBadgeScan(); })
+  new MutationObserver(() => { watchInfoPopups(); scheduleBadgeScan(); scheduleTrustPanel(); })
     .observe(document.body, { childList: true, subtree: true });
   watchInfoPopups();
   scheduleBadgeScan();
+  scheduleTrustPanel();
+  window.addEventListener("hashchange", scheduleTrustPanel);
 
   window.fetch = async function (input, init) {
     const response = await nativeFetch(input, init);

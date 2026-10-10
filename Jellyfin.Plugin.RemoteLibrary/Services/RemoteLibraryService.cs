@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -73,16 +74,17 @@ public sealed partial class RemoteLibraryService
             var checks = GetServers(GetConfiguration()).Where(server => server.Enabled).Select(async server =>
             {
                 var sourceLabel = SourceLabel(server);
+                var started = Stopwatch.GetTimestamp();
                 try
                 {
                     var client = CreateClient(server.ServerUrl, null);
                     await GetAsync<PublicSystemInfo>(client, "System/Info/Public", cancellationToken).ConfigureAwait(false);
-                    return new RemoteServerReachability(server.Id, sourceLabel, true);
+                    return new RemoteServerReachability(server.Id, sourceLabel, true, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                 }
                 catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
                 {
                     _logger.LogDebug(exception, "Remote library reachability check failed for {ServerUrl}", server.ServerUrl);
-                    return new RemoteServerReachability(server.Id, sourceLabel, false);
+                    return new RemoteServerReachability(server.Id, sourceLabel, false, null);
                 }
             });
             _reachability = new RemoteReachabilitySummary(await Task.WhenAll(checks).ConfigureAwait(false), now);
@@ -173,6 +175,15 @@ public sealed partial class RemoteLibraryService
             throw new InvalidOperationException("Add and enable at least one remote Jellyfin server.");
         }
 
+        // The first remote encountered owns each deduplicated pointer. Rank the
+        // servers first so that ownership automatically follows availability
+        // and measured connection latency instead of configuration order.
+        var connectionState = (await GetReachabilityAsync(cancellationToken).ConfigureAwait(false)).Servers
+            .ToDictionary(server => server.ServerId, StringComparer.OrdinalIgnoreCase);
+        servers = servers.OrderByDescending(server => connectionState.GetValueOrDefault(server.Id)?.Online == true)
+            .ThenBy(server => connectionState.GetValueOrDefault(server.Id)?.LatencyMs ?? long.MaxValue)
+            .ToList();
+
         var outputRoot = ResolveOutputRoot(config);
         Directory.CreateDirectory(outputRoot);
         Directory.CreateDirectory(Path.Combine(outputRoot, "Movies"));
@@ -249,6 +260,15 @@ public sealed partial class RemoteLibraryService
 
             if (!seenRemoteEpisodes.Add(key))
             {
+                if (hasLocalSeries && !string.IsNullOrWhiteSpace(localSeriesPath))
+                {
+                    AddEpisodeSourceTag(localSeriesPath, episode, seriesName, sourceLabel);
+                }
+                else
+                {
+                    var libraryFolder = RemoteSeriesFolder(series, seriesName);
+                    AddEpisodeSourceTag(RemoteSeriesDirectory(outputRoot, libraryFolder, seriesName, seriesYear), episode, seriesName, sourceLabel);
+                }
                 return false;
             }
 
@@ -334,6 +354,7 @@ public sealed partial class RemoteLibraryService
 
                             if (!seenRemoteMovies.Add(movieKey))
                             {
+                                AddMovieSourceTag(outputRoot, movie, sourceLabel);
                                 continue;
                             }
 
@@ -1018,6 +1039,40 @@ public sealed partial class RemoteLibraryService
         WritePointerPair(Path.Combine(root, "Movies", display), display, "movie", item, item.Name, serverId, secret, sourceLabel, desired);
     }
 
+    private static void AddMovieSourceTag(string root, RemoteItem item, string sourceLabel)
+    {
+        var display = SafeName($"{item.Name} ({item.ProductionYear?.ToString() ?? "Unknown"})");
+        AddRemoteSourceTag(Path.Combine(root, "Movies", display, display + ".nfo"), sourceLabel);
+    }
+
+    private static string RemoteSeriesDirectory(string root, string libraryFolder, string? seriesName, int? seriesYear)
+    {
+        var series = SafeName(seriesName ?? "Unknown Series");
+        var seriesFolder = seriesYear is null ? series : SafeName($"{series} ({seriesYear})");
+        return Path.Combine(root, libraryFolder, seriesFolder);
+    }
+
+    private static void AddEpisodeSourceTag(string seriesDirectory, RemoteItem item, string? seriesName, string sourceLabel)
+    {
+        var series = SafeName(seriesName ?? "Unknown Series");
+        var season = Math.Max(item.ParentIndexNumber ?? 0, 0);
+        var episode = Math.Max(item.IndexNumber ?? 0, 0);
+        var stem = SafeName($"{series} - S{season:00}E{episode:00} - {EpisodeDisplayName(item)}");
+        AddRemoteSourceTag(Path.Combine(seriesDirectory, $"Season {season:00}", stem + ".nfo"), sourceLabel);
+    }
+
+    private static void AddRemoteSourceTag(string nfoPath, string sourceLabel)
+    {
+        if (!File.Exists(nfoPath)) return;
+        var document = XDocument.Load(nfoPath);
+        var root = document.Root;
+        if (root is null) return;
+        var value = $"Remote Source: {sourceLabel}";
+        if (root.Elements("tag").Any(tag => string.Equals(tag.Value, value, StringComparison.OrdinalIgnoreCase))) return;
+        root.Add(new XElement("tag", value));
+        WriteTextIfChanged(nfoPath, SerializeNfo(document));
+    }
+
     private static void WriteEpisode(
         string root,
         string libraryFolder,
@@ -1651,7 +1706,7 @@ public sealed partial class RemoteLibraryService
 
 public sealed record RemoteStatus(bool Connected, string? ServerName, string? Username, string? Error);
 
-public sealed record RemoteServerReachability(string ServerId, string SourceLabel, bool Online);
+public sealed record RemoteServerReachability(string ServerId, string SourceLabel, bool Online, long? LatencyMs);
 
 public sealed record RemoteReachabilitySummary(IReadOnlyList<RemoteServerReachability> Servers, DateTimeOffset CheckedUtc);
 

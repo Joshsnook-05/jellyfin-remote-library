@@ -18,6 +18,7 @@ Remote Library mirrors remote metadata as tiny `.strm` and `.nfo` files, then se
 - Only remotely playable media is mirrored; virtual, missing, and calendar-only metadata never becomes a stream pointer
 - Separate Movies, Shows, and Anime pointer folders
 - `Remote Source: NAME` metadata tags for source-aware clients and UI customizations
+- Live source-health explanations and automatic local-first, fastest-online source selection
 - Range-aware playback proxy for seeking and direct play
 - No remote media is downloaded
 
