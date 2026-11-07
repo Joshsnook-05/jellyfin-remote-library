@@ -33,6 +33,8 @@ public sealed class PluginConfiguration : BasePluginConfiguration
 
     public bool EnableCalendar { get; set; } = true;
 
+    public bool ShowServerNameOnBadges { get; set; } = false;
+
     public bool EnableRecommendations { get; set; } = true;
 
     public bool SkipLocalMatches { get; set; } = true;

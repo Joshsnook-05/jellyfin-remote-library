@@ -21,6 +21,7 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
                 AutomaticDecompression = System.Net.DecompressionMethods.All
             });
         serviceCollection.AddSingleton<RemoteLibraryService>();
+        serviceCollection.AddSingleton<MediaBrowser.Controller.Library.IMediaSourceProvider, RemoteMediaSourceProvider>();
         serviceCollection.AddHostedService<RemoteLibraryStartupSyncService>();
         serviceCollection.AddSingleton<IStartupFilter, RemoteLibraryUiStartupFilter>();
     }

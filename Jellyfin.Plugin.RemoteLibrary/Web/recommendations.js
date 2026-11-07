@@ -39,6 +39,7 @@
       const client = api();
       const result = client?.getJSON ? await client.getJSON(client.getUrl("RemoteLibrary/Features")) : null;
       state.enabled = result?.enableRecommendations !== false;
+      state.showServerNameOnBadges = result?.showServerNameOnBadges === true;
     } catch (_) {
       state.enabled = true;
     }
@@ -182,7 +183,7 @@
     button.addEventListener("click", () => activate(entry));
     scalable.append(padder, image, button);
     const source = entry.kind === "seerr" ? "Seerr" : sourceOf(entry);
-    if (source) scalable.append(make("span", "glados-recommend-card__source", `From ${source}`));
+    if (source) scalable.append(make("span", "glados-recommend-card__source", entry.kind === "seerr" ? "Seerr" : state.showServerNameOnBadges ? source : "Remote"));
     box.append(scalable, make("div", "cardText cardText-first", titleOf(entry)), make("div", "cardText cardText-secondary", metaOf(entry)));
     result.append(box);
     return result;

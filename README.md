@@ -18,7 +18,9 @@ Remote Library mirrors remote metadata as tiny `.strm` and `.nfo` files, then se
 - Only remotely playable media is mirrored; virtual, missing, and calendar-only metadata never becomes a stream pointer
 - Separate Movies, Shows, and Anime pointer folders
 - `Remote Source: NAME` metadata tags for source-aware clients and UI customizations
-- Live source-health explanations and automatic local-first, fastest-online source selection
+- Configurable poster badges: “Remote” by default, or remote server names
+- Details-page selection between local and matching remote copies
+- Reported quality comparison and preferred audio-language availability
 - Range-aware playback proxy for seeking and direct play
 - No remote media is downloaded
 
@@ -83,6 +85,18 @@ python3 scripts/package_plugin.py --output-dir dist
 
 Pushing a new semantic plugin version (`major.minor.patch`) to `main` builds the ZIP, creates or updates its matching GitHub release, and adds it to `manifest.json`. The repository URL above becomes installable as soon as that workflow completes.
 
+### Tests
+
+With .NET 10 and Node.js 24 installed, run:
+
+```bash
+dotnet run --project tests/PlaybackSources
+npm ci --prefix tests
+npm test --prefix tests
+```
+
+The tests cover movie/episode discovery, loop rejection, offline peers, version and range forwarding, details-panel placement, server switching, per-user routing, quality ranking, and language preferences. They use simulated peers and a DOM environment; they do not require access to your live servers.
+
 ## How matching works
 
 Real local files always win. For a locally present series, the plugin adds pointers only for missing season and episode numbers. If more than one remote server contains the same item, the first enabled server in the configuration is preferred.
@@ -94,6 +108,18 @@ On native/bare-metal Jellyfin installs, if the configured `/remote-library` path
 When calendar sync is enabled, the plugin first reads each remote server's authenticated `JellyfinEnhanced/arr/calendar` feed used by Jellyfin Enhanced (Sonarr/Radarr releases). If Enhanced is unavailable or returns no events, it falls back to Jellyfin's native **Upcoming** feed. Calendar data can enrich an episode that already has playable remote media, but calendar-only, missing, and virtual episode records are never written into the media library. Existing local episodes and duplicate remote entries still win according to the normal matching rules.
 
 For contributors or coding agents implementing the companion Jellyfin Enhanced changes, see [AGENTS_JELLYFIN_ENHANCED_CALENDAR.md](AGENTS_JELLYFIN_ENHANCED_CALENDAR.md).
+
+### Playback sources and preferred language
+
+Poster badges say **Remote** by default. Enable **Show server names on poster badges** in Dashboard → Plugins → Remote Library to display server labels instead. Reload the Web client after changing this setting. Details pages always identify the selected playback server.
+
+Movie and episode details include a box above the description with a **Playback server** selector. Local media remains the default when it is present; matching copies from enabled, paired remote servers are additional playback sources. Selecting one applies to the next playback of that item in the current browser session, without affecting other viewers. Series and season pages show known server names; open an individual episode to choose its source. Standard Jellyfin playback still handles progress, seeking and transcoding through the local server.
+
+**Preferred audio language** is saved per Jellyfin user and server in this browser. The box lists sources reporting a matching audio track; it does not force an audio-track change. Jellyfin’s normal audio preferences still control track selection. Unknown language metadata is not treated as a confirmed mismatch.
+
+**Best reported quality** compares pixel resolution, then bitrate, among available sources. This is a metadata comparison, not a visual-quality measurement; codec efficiency, HDR, mastering, and network throughput can affect the result. Known offline sources are disabled in the selector. Discovery failures leave the existing local/pointer source available, and sources are cached for 30 seconds.
+
+Alternatives require a shared TMDb, IMDb, or TVDb identifier. Episodes also require a matching series and season/episode numbers. Title-only guesses, virtual entries, and imported remote pointers are excluded. Remote account credentials remain on the server; media is proxied locally. External subtitle files and attachments from alternate remote versions are not currently proxied; embedded tracks remain available. Source selection controls are supplied by the bundled Jellyfin Web bridge; native clients may expose the additional media sources using their own controls.
 
 ### Jellyfin Enhanced integration
 

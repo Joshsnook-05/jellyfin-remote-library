@@ -19,6 +19,15 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet restore Jellyfin.Plugin.RemoteLibrary/Jellyfin.Plugin.RemoteLibrary.csproj
       - run: dotnet build Jellyfin.Plugin.RemoteLibrary/Jellyfin.Plugin.RemoteLibrary.csproj -c Release --no-restore
+      - name: Test playback source discovery
+        run: dotnet run --project tests/PlaybackSources -c Release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Test details controls and playback routing
+        run: |
+          npm ci --prefix tests
+          npm test --prefix tests
       - name: Package plugin
         run: python3 scripts/package_plugin.py --output-dir dist
       - uses: actions/upload-artifact@v7

@@ -6,6 +6,8 @@
   if (window.__remoteLibraryBridgeInstalled) return;
   window.__remoteLibraryBridgeInstalled = true;
 
+  let featuresPromise;
+  const features = () => featuresPromise ||= jfJson("/RemoteLibrary/Features").catch(() => ({}));
   const nativeFetch = window.fetch.bind(window);
   const reviewAvatarUrls = new Map();
   const sourceBadgeCache = new Map();
@@ -126,7 +128,7 @@
     const itemSources = await remoteSourcesForItem(userId, itemId);
     const badge = document.createElement("span");
     badge.className = "remote-library-source-badge";
-    badge.textContent = itemSources.length > 1 ? "Remote" : source;
+    badge.textContent = (await features())?.showServerNameOnBadges ? itemSources.join(" / ") : "Remote";
     const sources = await loadReachability();
     const health = sources.find(entry => entry.label.toLowerCase() === source.toLowerCase());
     badge.classList.toggle("is-offline", health?.online === false);
@@ -143,6 +145,10 @@
     installSourceBadgeStyles();
     if (document.getElementById("gladosPrimaryNav")) {
       document.querySelectorAll(".remote-library-source-badge").forEach(badge => badge.remove());
+      features().then(settings => document.querySelectorAll('.glados-source-badge').forEach(badge => {
+        const label = settings?.showServerNameOnBadges && badge.dataset.source ? badge.dataset.source : 'Remote';
+        if (badge.textContent !== label) badge.textContent = label;
+      })).catch(() => {});
       return;
     }
     if (!badgeObserver && "IntersectionObserver" in window) {
@@ -187,75 +193,158 @@
     && !/\.strm$/i.test(item.Path)
     && !/^\/remote-library\//i.test(item.Path);
 
-  async function locallyAvailable(client, userId, item) {
-    if (itemHasLocalFile(item)) return true;
-    if (!["Series", "Season"].includes(item?.Type) || !client?.getItems) return false;
-    const children = await client.getItems(userId, {
-      ParentId: item.Id, Recursive: true, IncludeItemTypes: "Episode", Fields: "Tags,Path,IsVirtualItem", Limit: 500
-    });
-    return (children?.Items || []).some(itemHasLocalFile);
+  const playbackChoices = new Map();
+  const preferenceKey = () => `remote-library-language:${api()?.serverId?.() || location.host}:${api()?.getCurrentUserId?.()}`;
+  const choiceKey = id => `${api()?.serverId?.() || location.host}:${api()?.getCurrentUserId?.()}:${id.replace(/-/g, '').toLowerCase()}`;
+  const normalizeLanguage = value => {
+    const code = String(value || '').toLowerCase().split(/[-_]/)[0];
+    return ({eng:'en',fra:'fr',fre:'fr',deu:'de',ger:'de',spa:'es',ita:'it',por:'pt',jpn:'ja',kor:'ko',zho:'zh',chi:'zh',rus:'ru',ara:'ar',hin:'hi',nld:'nl',dut:'nl',pol:'pl',swe:'sv',nor:'no',dan:'da',fin:'fi',tur:'tr',ukr:'uk',ces:'cs',cze:'cs'})[code] || code;
+  };
+  const audioLanguages = source => [...new Set((source.MediaStreams || [])
+    .filter(stream => stream.Type === 'Audio').map(stream => normalizeLanguage(stream.Language)).filter(code => code && code !== 'und'))];
+  const quality = source => {
+    const video = (source.MediaStreams || []).find(stream => stream.Type === 'Video');
+    return { height: video?.Height || 0, pixels: (video?.Width || 0) * (video?.Height || 0), bitrate: source.Bitrate || video?.BitRate || 0 };
+  };
+  const qualityLabel = source => {
+    const q = quality(source);
+    return q.height ? `${q.height}p${q.bitrate ? ` · ${(q.bitrate / 1000000).toFixed(1)} Mbps` : ''}` : 'Quality unknown';
+  };
+  function playbackSelection(url, method) {
+    if (String(method).toUpperCase() !== 'POST') return null;
+    const parsed = new URL(url, location.href);
+    const base = new URL(api()?.getUrl?.('') || location.href, location.href);
+    if (parsed.origin !== base.origin) return null;
+    const match = parsed.pathname.match(/\/Items\/([^/]+)\/PlaybackInfo\/?$/i);
+    if (!match) return null;
+    const choice = playbackChoices.get(choiceKey(match[1]));
+    if (!choice) return null;
+    parsed.searchParams.set('MediaSourceId', choice);
+    return { url: parsed.href, choice };
   }
+  function selectedBody(body, choice) {
+    if (typeof body !== 'string' || !body.trim()) return body;
+    try { return JSON.stringify({ ...JSON.parse(body), MediaSourceId: choice }); }
+    catch (_) { return body; }
+  }
+  // Older Web clients use XHR; current SDK clients use fetch.
+  const xhrOpen = XMLHttpRequest.prototype.open;
+  const xhrSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function (method, url, ...args) {
+    this.remoteLibrarySelection = playbackSelection(url, method);
+    return xhrOpen.call(this, method, this.remoteLibrarySelection?.url || url, ...args);
+  };
+  XMLHttpRequest.prototype.send = function (body) {
+    return xhrSend.call(this, this.remoteLibrarySelection ? selectedBody(body, this.remoteLibrarySelection.choice) : body);
+  };
 
+  let mountingDetails = false;
   async function mountTrustPanel() {
+    if (mountingDetails) return;
     const client = api();
     const userId = client?.getCurrentUserId?.();
     const id = detailItemId();
-    const page = document.querySelector("#itemDetailPage:not(.hide)");
+    const page = document.querySelector('#itemDetailPage:not(.hide)');
     if (!userId || !id || !page) return;
-    const old = page.querySelector(".remote-library-trust");
-    if (old?.dataset.itemId === id) return;
+    const old = page.querySelector('.remote-library-trust');
+    if (old?.dataset.itemId === `${userId}:${id}`) return;
     old?.remove();
-    let item;
-    try { item = await client.getItem(userId, id); } catch (_) { return; }
-    if (await locallyAvailable(client, userId, item)) return;
-    const itemSources = await remoteSourcesForItem(userId, id);
-    if (!itemSources.length || detailItemId() !== id) return;
-    const sources = await loadReachability();
-    const ranked = itemSources.map(name => ({
-      name,
-      health: sources.find(entry => entry.label.toLowerCase() === name.toLowerCase())
-    })).sort((a, b) => {
-      const onlineDelta = Number(b.health?.online !== false) - Number(a.health?.online !== false);
-      return onlineDelta || (a.health?.latencyMs ?? Number.POSITIVE_INFINITY) - (b.health?.latencyMs ?? Number.POSITIVE_INFINITY);
-    });
-    const selected = ranked[0];
-    const source = selected.name;
-    const online = selected.health?.online !== false;
-    const badgeLabel = itemSources.length > 1 ? "Remote" : source;
-    const host = document.createElement("span");
-    host.className = `remote-library-trust${online ? "" : " is-offline"}`;
-    host.dataset.itemId = id;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "remote-library-trust__button";
-    button.setAttribute("aria-expanded", "false");
-    const dot = document.createElement("span");
-    dot.className = "remote-library-trust__dot";
-    dot.setAttribute("aria-hidden", "true");
-    const label = document.createElement("span");
-    label.textContent = badgeLabel;
-    button.append(dot, label);
-    const panel = document.createElement("span");
-    panel.className = "remote-library-trust__panel";
-    panel.hidden = true;
-    const title = document.createElement("strong");
-    title.textContent = online ? `Streaming from ${source}` : `${source} is temporarily offline`;
-    const copy = document.createElement("p");
-    copy.textContent = online
-      ? "This title is proxied securely through GLaDOS.TV. Your remote account credentials are never sent to this browser."
-      : "The title and artwork stay visible. Playback will become available automatically when the source reconnects.";
-    const hint = document.createElement("small");
-    hint.className = "remote-library-trust__hint";
-    const latency = Number.isFinite(selected.health?.latencyMs) ? ` (${selected.health.latencyMs} ms)` : "";
-    hint.textContent = `Automatic source selection · local first, then the fastest online source${latency}.`;
-    panel.append(title, copy, hint);
-    button.addEventListener("click", () => {
-      panel.hidden = !panel.hidden;
-      button.setAttribute("aria-expanded", String(!panel.hidden));
-    });
-    host.append(button, panel);
-    const target = page.querySelector(".mainDetailButtons, .detailPagePrimaryContent");
-    target?.append(host);
+    mountingDetails = true;
+    try {
+      const item = await client.getItem(userId, id);
+      const names = await remoteSourcesForItem(userId, id);
+      if (!['Movie', 'Episode'].includes(item.Type)) {
+        if (names.length && detailItemId() === id) {
+          const note = document.createElement('div');
+          note.className = 'remote-library-trust';
+          note.dataset.itemId = `${userId}:${id}`;
+          note.textContent = `Available remote servers: ${names.join(', ')}. Open an episode to compare and select its server.`;
+          page.querySelector('.detailPagePrimaryContent')?.append(note);
+        }
+        return;
+      }
+      const data = await jfJson(`/Items/${encodeURIComponent(id)}/PlaybackInfo?UserId=${encodeURIComponent(userId)}`);
+      if (detailItemId() !== id || client.getCurrentUserId() !== userId || !page.isConnected) return;
+      const sources = data?.MediaSources || data?.mediaSources || [];
+      const health = await loadReachability();
+      if (detailItemId() !== id || client.getCurrentUserId() !== userId) return;
+      if (!sources.length) return;
+      const remote = source => source.Id?.includes('remote_');
+      if (!names.length && !sources.some(remote)) return;
+      const sourceName = source => remote(source) ? source.Name.split(' · ')[0]
+        : itemHasLocalFile(item) ? 'Local' : names[0] || 'Remote';
+      const offline = source => health.some(server => server.label.toLowerCase() === sourceName(source).toLowerCase() && !server.online);
+      const host = document.createElement('div');
+      host.className = 'remote-library-trust remote-library-source-box';
+      host.dataset.itemId = `${userId}:${id}`;
+      host.style.cssText = 'display:block;padding:1rem;margin:1rem 0;border:1px solid #ffffff40;border-radius:12px;background:#ffffff0a;max-width:48rem';
+      const heading = document.createElement('strong');
+      const serverLabel = document.createElement('label');
+      serverLabel.textContent = 'Playback server ';
+      const select = document.createElement('select');
+      select.setAttribute('aria-label', 'Playback server');
+      select.style.cssText = 'max-width:100%;padding:.5rem;margin:.5rem;color:#111;background:#fff';
+      sources.forEach(source => {
+        const option = document.createElement('option');
+        option.value = source.Id;
+        option.textContent = `${sourceName(source)} · ${qualityLabel(source)}${offline(source) ? " · Offline" : ""}`;
+        option.disabled = offline(source);
+        select.append(option);
+      });
+      const stored = playbackChoices.get(choiceKey(id));
+      const selected = sources.find(source => source.Id === stored && !offline(source)) || sources.find(source => !offline(source)) || sources[0];
+      select.value = selected.Id;
+      // Pin the displayed choice so the label describes the actual playback route.
+      playbackChoices.set(choiceKey(id), selected.Id);
+      const summary = document.createElement('p');
+      const languageLabel = document.createElement('label');
+      languageLabel.textContent = 'Preferred audio language ';
+      const language = document.createElement('select');
+      language.setAttribute('aria-label', 'Preferred audio language');
+      language.style.cssText = select.style.cssText;
+      let preferred = '';
+      try { preferred = normalizeLanguage(localStorage.getItem(preferenceKey())); } catch (_) { /* storage may be disabled */ }
+      const codes = [...new Set(['en','fr','de','es','it','pt','ja','ko','zh','ru','ar','hi','nl','pl','sv','no','da','fi','tr','uk','cs', preferred,
+        ...sources.flatMap(audioLanguages)])].filter(Boolean).sort();
+      language.append(new Option('No preference', ''));
+      codes.forEach(code => {
+        let name = code;
+        try { name = new Intl.DisplayNames([navigator.language || 'en'], {type:'language'}).of(code) || code; } catch (_) { /* use code */ }
+        language.append(new Option(name, code));
+      });
+      language.value = preferred;
+      const languageInfo = document.createElement('p');
+      const status = document.createElement('small');
+      status.setAttribute('role', 'status');
+      status.textContent = 'Selection applies to the next playback in this browser. Quality compares reported resolution, then bitrate. Language matches audio tracks.';
+      const render = () => {
+        const current = sources.find(source => source.Id === select.value);
+        heading.textContent = `Selected server: ${sourceName(current)}${offline(current) ? " (offline)" : ""}`;
+        const ranked = sources.filter(source => !offline(source) && quality(source).pixels).sort((a,b) => quality(b).pixels - quality(a).pixels || quality(b).bitrate - quality(a).bitrate);
+        const best = ranked[0];
+        const ties = best ? ranked.filter(source => quality(source).pixels === quality(best).pixels && quality(source).bitrate === quality(best).bitrate) : [];
+        summary.textContent = best ? `Best reported quality: ${[...new Set(ties.map(sourceName))].join(', ')} · ${qualityLabel(best)}.` : 'Best quality: metadata unavailable.';
+        const matches = sources.filter(source => !offline(source) && audioLanguages(source).includes(language.value));
+        languageInfo.textContent = !language.value ? 'Choose a language to see matching servers.' : matches.length
+          ? `Preferred audio available on: ${[...new Set(matches.map(sourceName))].join(', ')}.`
+          : 'No source reports your preferred audio language. Missing language metadata may hide a match.';
+      };
+      select.addEventListener('change', () => { playbackChoices.set(choiceKey(id), select.value); render(); });
+      language.addEventListener('change', () => {
+        try { localStorage.setItem(preferenceKey(), language.value); } catch (_) { /* preference still works for this page */ }
+        render();
+      });
+      serverLabel.append(select);
+      languageLabel.append(language);
+      host.append(heading, document.createElement('br'), serverLabel, summary, languageLabel, languageInfo, status);
+      render();
+      const overview = page.querySelector('.overview');
+      if (overview) overview.before(host);
+      else page.querySelector('.detailPagePrimaryContent, .mainDetailButtons')?.append(host);
+    } finally {
+      mountingDetails = false;
+      if (detailItemId() !== id) scheduleTrustPanel();
+    }
   }
 
   function scheduleTrustPanel() {
@@ -378,6 +467,21 @@
   window.addEventListener("hashchange", scheduleTrustPanel);
 
   window.fetch = async function (input, init) {
+    const requestUrl = typeof input === 'string' || input instanceof URL ? String(input) : input.url;
+    const selection = playbackSelection(requestUrl, init?.method || input?.method || 'GET');
+    if (selection) {
+      if (input instanceof Request) {
+        const request = new Request(input, init);
+        const body = await request.clone().text();
+        input = new Request(selection.url, { method: request.method, headers: request.headers,
+          credentials: request.credentials, signal: request.signal, mode: request.mode,
+          body: selectedBody(body, selection.choice) });
+        init = undefined;
+      } else {
+        input = selection.url;
+        init = { ...init, body: selectedBody(init?.body, selection.choice) };
+      }
+    }
     const response = await nativeFetch(input, init);
     const url = typeof input === "string" ? input : (input?.url || "");
     if (!/JellyfinEnhanced\/(arr\/calendar|reviews\/)/i.test(url) || !response.ok) return response;

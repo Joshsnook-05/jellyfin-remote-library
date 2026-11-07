@@ -83,7 +83,8 @@ public sealed class RemoteLibraryController : ControllerBase
     [HttpGet("Features")]
     [Authorize]
     public IActionResult Features()
-        => Ok(new { enableRecommendations = Plugin.Instance?.Configuration.EnableRecommendations ?? true });
+        => Ok(new { enableRecommendations = Plugin.Instance?.Configuration.EnableRecommendations ?? true,
+            showServerNameOnBadges = Plugin.Instance?.Configuration.ShowServerNameOnBadges ?? false });
 
     [HttpGet("Status")]
     [Authorize(Policy = "RequiresElevation")]

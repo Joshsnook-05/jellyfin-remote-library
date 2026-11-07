@@ -18,7 +18,8 @@ public sealed partial class RemoteLibraryService
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
     };
 
     private readonly IHttpClientFactory _httpClientFactory;
@@ -789,6 +790,11 @@ public sealed partial class RemoteLibraryService
         var path = image
             ? $"Items/{Uri.EscapeDataString(itemId)}/Images/Primary"
             : $"Videos/{Uri.EscapeDataString(itemId)}/stream?static=true";
+        if (!image && !string.IsNullOrWhiteSpace(incoming.Query["mediaSourceId"]))
+        {
+            path += "&mediaSourceId=" + Uri.EscapeDataString(incoming.Query["mediaSourceId"].ToString());
+        }
+
         using var request = new HttpRequestMessage(HttpMethods.IsHead(incoming.Method) ? HttpMethod.Head : HttpMethod.Get, path);
         if (incoming.Headers.Range.Count > 0)
         {

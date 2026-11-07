@@ -1,0 +1,6 @@
+{
+  "name": "remote-library-ui-tests",
+  "private": true,
+  "scripts": { "test": "node playback-ui.cjs && node details-panel.cjs" },
+  "devDependencies": { "jsdom": "31.0.0" }
+}
