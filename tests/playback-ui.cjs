@@ -8,6 +8,18 @@ context.XMLHttpRequest.prototype.open = function(method, url) { this.url = url; 
 context.XMLHttpRequest.prototype.send = function(body) { this.body = body; };
 vm.runInContext(js.slice(js.indexOf('  const playbackChoices'), js.indexOf('  let mountingDetails')), context);
 const run = code => vm.runInContext(code, context);
+const authenticatedApi = context.api;
+context.api = () => ({
+  getCurrentUserId: () => null,
+  getUrl: () => { throw new Error('ApiClient server state is unavailable before login'); }
+});
+const loginXhr = new context.XMLHttpRequest();
+assert.doesNotThrow(() => loginXhr.open('POST', '/jellyfin/Users/AuthenticateByName'));
+loginXhr.send('{"Username":"alice","Pw":"secret"}');
+assert.equal(loginXhr.url, '/jellyfin/Users/AuthenticateByName');
+assert.equal(loginXhr.body, '{"Username":"alice","Pw":"secret"}');
+assert.equal(run("playbackSelection('/jellyfin/Items/abcd/PlaybackInfo','POST')"), null);
+context.api = authenticatedApi;
 run("playbackChoices.set(choiceKey('ab-cd'), 'remote_friend_item_version')");
 assert.equal(run("playbackSelection('/jellyfin/Items/abcd/PlaybackInfo','POST').choice"), 'remote_friend_item_version');
 assert.equal(run("playbackSelection('/jellyfin/Items/abcd/PlaybackInfo','GET')"), null);
@@ -26,4 +38,4 @@ assert.equal(run("normalizeLanguage('fr-CA')"), 'fr');
 assert.equal(run("JSON.stringify(audioLanguages({MediaStreams:[{Type:'Audio',Language:'eng'},{Type:'Subtitle',Language:'fra'},{Type:'Audio',Language:'und'}]}))"), '["en"]');
 assert.equal(run("qualityLabel({MediaStreams:[]})"), 'Quality unknown');
 assert.equal(run("qualityLabel({Bitrate:12000000,MediaStreams:[{Type:'Video',Width:1920,Height:1080}]})"), '1080p · 12.0 Mbps');
-console.log('Playback request routing, user isolation, language and quality checks passed.');
+console.log('Pre-auth login passthrough, playback request routing, user isolation, language and quality checks passed.');

@@ -7,7 +7,7 @@ namespace Jellyfin.Plugin.RemoteLibrary.Tasks;
 
 public sealed class InstallUiCompanionTask : IScheduledTask
 {
-    private const string ScriptTags = "<script plugin=\"Remote Library\" defer src=\"../RemoteLibrary/Integration.js?v=1.0.13\"></script>\n<script plugin=\"Remote Library\" defer src=\"../RemoteLibrary/Recommendations.js?v=1.0.13\"></script>";
+    private const string ScriptTags = "<script plugin=\"Remote Library\" defer src=\"../RemoteLibrary/Integration.js?v=1.0.14\"></script>\n<script plugin=\"Remote Library\" defer src=\"../RemoteLibrary/Recommendations.js?v=1.0.14\"></script>";
     private static readonly Regex ExistingTag = new(
         @"<script[^>]*(?:plugin=[""']Remote Library[""']|RemoteLibrary/(?:Integration|Recommendations)\.js)[^>]*>\s*</script>\s*",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);

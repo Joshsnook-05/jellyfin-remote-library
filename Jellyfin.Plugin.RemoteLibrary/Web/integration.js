@@ -212,11 +212,20 @@
   };
   function playbackSelection(url, method) {
     if (String(method).toUpperCase() !== 'POST') return null;
-    const parsed = new URL(url, location.href);
-    const base = new URL(api()?.getUrl?.('') || location.href, location.href);
-    if (parsed.origin !== base.origin) return null;
+    let parsed;
+    try { parsed = new URL(url, location.href); }
+    catch (_) { return null; }
     const match = parsed.pathname.match(/\/Items\/([^/]+)\/PlaybackInfo\/?$/i);
+    // This interceptor is installed on the anonymous login page. Reject every
+    // unrelated POST before consulting ApiClient, whose server state is not yet
+    // initialized and may throw from getUrl() until authentication completes.
     if (!match) return null;
+    const client = api();
+    if (!client?.getCurrentUserId?.()) return null;
+    let base;
+    try { base = new URL(client.getUrl?.('') || location.href, location.href); }
+    catch (_) { return null; }
+    if (parsed.origin !== base.origin) return null;
     const choice = playbackChoices.get(choiceKey(match[1]));
     if (!choice) return null;
     parsed.searchParams.set('MediaSourceId', choice);

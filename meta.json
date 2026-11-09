@@ -1,14 +1,14 @@
 {
   "category": "General",
-  "changelog": "Default remote badges to Remote with an optional server-name label. Add per-viewer details-page source selection, proxied remote playback alternatives, reported-quality comparisons, and preferred audio-language availability.",
+  "changelog": "Fix web login failures by keeping the playback-source request interceptor away from anonymous authentication requests.",
   "description": "Synchronize and stream libraries from multiple remote Jellyfin servers without downloading their media.",
   "guid": "5bfb2af8-3575-4d2f-9041-621588e13bfa",
   "name": "Remote Library",
   "overview": "Multi-server remote Jellyfin library pointers with local-first deduplication.",
   "owner": "Josh Snook",
   "targetAbi": "12.1.0.0",
-  "timestamp": "2026-11-07T00:00:00.0000000Z",
-  "version": "1.0.13",
+  "timestamp": "2026-11-09T22:10:00.0000000Z",
+  "version": "1.0.14",
   "status": "Active",
   "autoUpdate": true,
   "assemblies": [
